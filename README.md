@@ -136,6 +136,13 @@ For each question, the QA RAG path ranks the split's public `evidence_reference`
 
 The latest complete 452-example GPT RAG validation run with `gpt-4.1-mini` scored exact match `0.0` and token F1 `0.2387` (figure F1 `0.2340`, table F1 `0.2408`). The vision-only validation baseline scored token F1 `0.1503` on the same split/model. QA evidence retrieval hit@3 was `0.8319` (MRR `0.7824`, top-citation ID match `0.7434`); these figures rank against M3SciQA annotation-provided passages, not an independent paper corpus. See [fresh QA metrics](llm_agents/evaluation/validation/qa/metrics-agentic-run-2026-10-31.json), [scored predictions](llm_agents/evaluation/validation/qa/predictions-agentic-run-2026-10-31-scored.jsonl), and [complete raw predictions](results/qa/validation/agentic-run-2026-10-31/rag-predictions-complete.jsonl). This descriptive comparison adds BM25 evidence context; it has no significance test or separate-seed analysis.
 
+Example from validation row 0 (table image, GPT-4.1-mini):
+
+```text
+Input: Consider the paper that introduces the method that achieves a score of 28.62 in the WQ-B task. How does the model proposed in the paper address the challenge of generating questions with both word-level and structure-level diversity?
+Output excerpt: The model DSM, which achieves a score of 28.62 in the WQ-B task, addresses the challenge of generating questions with both word-level and structure-level diversity by introducing external natural questions to diversify question generation. This approach generates questions with different expressions covering a wider range of semantic patterns and expressions. ... [arXiv:2309.14362]
+```
+
 Validation answers are scored against public reference answers. Test answers are hidden, so this README reports answer-quality scores only for validation. For test runs, known validation examples may be used as few-shot demonstrations; target test answers are never included in the prompt.
 
 ## Agent Evaluation Metrics
@@ -151,3 +158,10 @@ Each JSON sample contains the question, modality, image path, public reference p
 The evaluation uses `evidence_reference` passages grouped by `reference_arxiv_id`; answer and explanation fields are not put in the retrieval corpus. Recall@5 and MRR rank within those annotation-provided passages; citation correctness is an ID-match proxy, not a semantic-entailment judgment. Tool selection is compared with `inspect_figures` for rows labeled figure/table. Test answers are hidden; this project reports current agent results on validation only.
 
 Fresh GPT agent validation results (`gpt-4.1-mini`, 452 rows): Recall@5 `0.8533`, MRR@5 `0.7855`, citation-ID correctness `0.7400`, and strict first-tool selection accuracy `0.0996` (zero tool-call errors). The planner selected `inspect_figures` on 45 rows and `search` on 407. The saved evaluation measures only the first decision per row; it does not measure later replanning. See [fresh tool-calling metrics](results/tool-calling/validation/agentic-run-2026-10-31/metrics.json) and [per-example traces](results/tool-calling/validation/agentic-run-2026-10-31/samples.json). Retrieval metrics use annotated evidence, not an open corpus.
+
+Example from validation row 0 (tool-selection decision only):
+
+```text
+Input: Consider the paper that introduces the method that achieves a score of 28.62 in the WQ-B task. How does the model proposed in the paper address the challenge of generating questions with both word-level and structure-level diversity?
+Output: selected `search`; expected `inspect_figures`. The reference paper (`2309.14362`) ranked second in the top five; the top-ranked paper ID did not match it. This is the first tool-selection decision, not a tool execution.
+```
