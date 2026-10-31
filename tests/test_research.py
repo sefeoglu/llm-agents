@@ -1,6 +1,6 @@
 import json
 
-from llm_agents.benchmark import evaluate_m3sciqa, evaluate_scifact
+from llm_agents.benchmark import evaluate_m3sciqa
 from llm_agents.evaluation import evaluate_m3sciqa_agent
 from llm_agents.papers import ResearchPaper, parse_arxiv_feed, sample_papers
 from llm_agents.research import ResearchAssistant
@@ -32,30 +32,6 @@ def test_agent_selects_retrieval_trend_and_calculator():
 
     calculation = assistant.run("Compute 12 * (3 + 4)")
     assert calculation["answer"] == "84"
-
-
-def test_scifact_retrieval_metrics_use_gold_document_ids(tmp_path):
-    corpus_path = tmp_path / "corpus.jsonl"
-    claims_path = tmp_path / "claims_dev.jsonl"
-    corpus_path.write_text(
-        json.dumps({"doc_id": 12, "title": "Evidence paper", "abstract": ["Drug X reduces inflammation."]}) + "\n"
-        + json.dumps({"doc_id": 19, "title": "Other paper", "abstract": ["Unrelated astronomy result."]}) + "\n",
-        encoding="utf-8",
-    )
-    claims_path.write_text(
-        json.dumps({"id": 1, "claim": "Drug X reduces inflammation", "cited_doc_ids": [12]}) + "\n",
-        encoding="utf-8",
-    )
-
-    metrics = evaluate_scifact(str(corpus_path), str(claims_path), top_k=1)
-    assert metrics == {
-        "dataset": "SciFact dev",
-        "claims_evaluated": 1,
-        "top_k": 1,
-        "hit_rate_at_k": 1.0,
-        "recall_at_k": 1.0,
-        "mrr_at_k": 1.0,
-    }
 
 
 def test_trend_tool_reports_small_corpus_scope():

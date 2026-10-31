@@ -209,7 +209,7 @@ The candidate evidence corpus is formed from the selected split's public `eviden
 - `ResearchPaper.indexed_text()` combines paper metadata, abstract/full text, figure context, and source URL into a searchable string.
 - `ResearchAssistant` builds its in-memory searchable document list from paper records.
 - `_retrieve()` performs first-stage token-overlap filtering; `Reranker` scores and sorts candidates with BM25.
-- `benchmark.py` handles SciFact and M3SciQA dataset/evaluation operations; `evaluation.py` computes the four agent-evaluation metrics.
+- `benchmark.py` handles M3SciQA dataset/evaluation operations; `evaluation.py` computes the four agent-evaluation metrics.
 - Local corpora and extracted images live under `data/`; metric outputs live under `results/`. Existing dataset files are not changed by the evaluation commands.
 
 ## Design Choices and Limitations

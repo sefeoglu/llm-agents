@@ -11,18 +11,6 @@
     "tests_passed": 17,
     "tests_failed": 0
   },
-  "scifact": {
-    "command": "python main.py benchmark --dataset scifact --data-dir data/scifact --top-k 5",
-    "output": "scifact-retrieval-metrics.json",
-    "metrics": {
-      "dataset": "SciFact dev",
-      "claims_evaluated": 300,
-      "top_k": 5,
-      "hit_rate_at_k": 0.7433,
-      "recall_at_k": 0.7209,
-      "mrr_at_k": 0.6257
-    }
-  },
   "m3sciqa_agent_metrics": {
     "validation": {
       "command": "python main.py evaluate-agent --data-dir data/m3sciqa --split validation --top-k 5",

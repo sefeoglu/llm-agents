@@ -4,10 +4,13 @@
 ![Agent](https://img.shields.io/badge/Agent-Rule--based%20prototype-6A5ACD)
 ![Retrieval](https://img.shields.io/badge/Retrieval-BM25-00897B)
 ![Multimodal](https://img.shields.io/badge/Benchmark-M3SciQA-EA6A47)
-![Tests](https://img.shields.io/badge/Tests-17%20passing-2E8B57)
+[![Dataset](https://img.shields.io/badge/Dataset-M3SciQA-yellow?logo=huggingface&logoColor=white)](https://huggingface.co/datasets/yale-nlp/M3SciQA)
+![Tests](https://img.shields.io/badge/Tests-16%20passing-2E8B57)
 ![License](https://img.shields.io/badge/License-MIT-555555)
 
 > **Note:** This is a basic prototype, not a fully agentic system, and has been evaluated on a small dataset. Its orchestration design was inspired by [Chen et al. (2026)](#orchestration-reference).
+
+> **Dataset note:** The repository includes M3SciQA split metadata and a small representative subset of images. Download the complete M3SciQA dataset from [Hugging Face](https://huggingface.co/datasets/yale-nlp/M3SciQA) to run the full multimodal evaluation.
 
 **Scientific Literature Research Agent** is a small CLI prototype for scientific literature research. Its **orchestration layer** runs a bounded agent loop: a rule-based router selects tools dynamically, `ToolRegistry` dispatches calls, and every call is recorded in an inspectable trace. Available tools cover arXiv literature search, **BM25** paper retrieval, safe arithmetic, publication-trend analysis, and PDF figure/table inspection with optional local **Ollama** vision. Separate evaluation commands measure **M3SciQA** retrieval, **citation-ID** matching, **tool selection**, and **multimodal answers** where labels are available.
 
@@ -49,7 +52,7 @@ The arXiv API call requires network access. The collector stores titles, authors
 - `research.py` exposes BM25 retrieval, figure inspection, a calculator, and an annual-publication trend tool. `ResearchLLM` routes visual questions to the figure tool and chooses trend analysis when the question asks about time.
 - `vision.py` sends an extracted image to an explicitly configured local Ollama vision model and returns its visual description.
 - `reranker.py` provides lightweight BM25 ranking. Answers quote the highest-ranked evidence record, including its paper identifier and source location.
-- `benchmark.py` downloads the official SciFact dev split and corpus on demand, then reports evidence-document hit rate, recall@k, and MRR@k.
+- `benchmark.py` downloads M3SciQA records and images and evaluates image-grounded answers.
 - `main.py` provides collection, PDF ingestion, question-answering, and benchmark commands.
 
 The interactive agent is a deterministic routing baseline, not a generative answer model. The optional Ollama model is currently used for image descriptions and M3SciQA inference. A battery-focused regression experiment and synthesized, evidence-grounded battery answers are not implemented yet.
@@ -119,45 +122,43 @@ On this three-example sample, exact match was 0.0 and token F1 was 0.2265. These
 The benchmark dataset is the official [Yale NLP M3SciQA](https://huggingface.co/datasets/yale-nlp/M3SciQA) release (CC-BY-4.0): 1,452 expert-annotated scientific QA examples, with 452 validation and 1,000 test records. Records include question and answer text, a figure/table image, modality label, paper IDs, and anchor/reference evidence fields. Download both splits and image bytes to local storage:
 
 ```bash
-python main.py download-m3sciqa --data-dir data/m3sciqa --split all
+python main.py download-m3sciqa --data-dir "$HOME/datasets/m3sciqa-full" --split all
 ```
 
-These files are already available locally: `data/m3sciqa/validation.jsonl`, `data/m3sciqa/test.jsonl`, and `data/m3sciqa/images/{validation,test}/` (452 validation and 1,000 test images). The download command is repeatable and reports existing complete splits; the data paths are ignored by Git. The supplied SciFact corpus and development claims are also available under `data/scifact/`.
+The repository has `data/m3sciqa/validation.jsonl` and `data/m3sciqa/test.jsonl` plus a small representative image subset; it does not track all 1,452 images. The downloader refuses to overwrite these sample split files, so fetch the complete dataset into a separate directory:
+
+```bash
+python main.py download-m3sciqa --data-dir "$HOME/datasets/m3sciqa-full" --split all
+```
+
+Use `--data-dir "$HOME/datasets/m3sciqa-full"` for full-dataset benchmark commands.
 
 Install and start a local Ollama vision model, then evaluate on validation (held-out test is also selectable):
 
 ```bash
 ollama pull llava
-OLLAMA_VISION_MODEL=llava python main.py benchmark --dataset m3sciqa --data-dir data/m3sciqa --split validation --limit 20 --output results/m3sciqa-validation-llava-20.jsonl
-OLLAMA_VISION_MODEL=llava python main.py benchmark --dataset m3sciqa --data-dir data/m3sciqa --split test --limit 20 --augmentation-k 2 --output results/m3sciqa-test-llava-20-validation-augmented-unscored.jsonl
+OLLAMA_VISION_MODEL=llava python main.py benchmark --data-dir "$HOME/datasets/m3sciqa-full" --split validation --limit 20 --output results/m3sciqa-validation-llava-20.jsonl
+OLLAMA_VISION_MODEL=llava python main.py benchmark --data-dir "$HOME/datasets/m3sciqa-full" --split test --limit 20 --augmentation-k 2 --output results/m3sciqa-test-llava-20-validation-augmented-unscored.jsonl
 ```
 
 For validation runs, normalized exact match and token F1 are measured against the public reference answers. For test runs, the evaluator uses up to two BM25-selected validation examples, including their images and known Q/A, as few-shot demonstrations; the test answer is never placed in the prompt. The official M3SciQA test split has blank/hidden answer labels, so test runs are prediction-only and report metrics as `null`, not zero. Validation examples are never added to validation prompts. The `--output` files shown above are created when those commands are run; they are not present in the current workspace. Available test inputs and retrieval/tool outputs are in [the dated test sample trace](results/rerun-2026-10-31/m3sciqa-test-samples.json). JSONL inference records include each question, model answer, available reference answer, modality, paper IDs, local image path, selected validation row IDs, and per-example metrics. Records are flushed as examples finish, so completed answers remain saved if a later example fails. Images stay on disk locally and are sent only to the configured local Ollama server.
 
 Measured evaluation results are recorded in the dated rerun directory described below. The official M3SciQA test split has no public answer labels, so its predictions cannot be assigned EM/F1; earlier test-run `0.0` scores were artifacts of treating blank references as labels and must not be interpreted as model quality. Use validation for answer scoring; test can be used for annotation-based retrieval/routing metrics or saved predictions only.
 
-The previous text-only SciFact evidence retrieval evaluation remains available as a separate task:
-
-```bash
-python main.py benchmark --dataset scifact --data-dir data/scifact
-```
-
-It reports hit-rate@k, recall@k, and MRR@k over SciFact dev evidence document IDs; the latest full-split BM25 result was 0.7433, 0.7209, and 0.6257 respectively at k=5. The corpus and claims are already local under `data/scifact/`; omit `--download` because the downloader refuses to overwrite existing files. This is a separate text retrieval benchmark and does not measure multimodal answer quality.
-
 ## Agent Evaluation Metrics
 
 Run the four requested agent/evidence metrics against both M3SciQA splits:
 
 ```bash
-python main.py evaluate-agent --data-dir data/m3sciqa --split validation --top-k 5 --output results/m3sciqa-agent-metrics-validation.json
-python main.py evaluate-agent --data-dir data/m3sciqa --split test --top-k 5 --output results/m3sciqa-agent-metrics-test.json
+python main.py evaluate-agent --data-dir "$HOME/datasets/m3sciqa-full" --split validation --top-k 5 --output results/m3sciqa-agent-metrics-validation.json
+python main.py evaluate-agent --data-dir "$HOME/datasets/m3sciqa-full" --split test --top-k 5 --output results/m3sciqa-agent-metrics-test.json
 ```
 
 To save the inputs and system outputs for every sample, add `--samples-output`:
 
 ```bash
-python main.py evaluate-agent --data-dir data/m3sciqa --split validation --top-k 5 --samples-output results/m3sciqa-agent-samples-validation.json
-python main.py evaluate-agent --data-dir data/m3sciqa --split test --top-k 5 --samples-output results/m3sciqa-agent-samples-test.json
+python main.py evaluate-agent --data-dir "$HOME/datasets/m3sciqa-full" --split validation --top-k 5 --samples-output results/m3sciqa-agent-samples-validation.json
+python main.py evaluate-agent --data-dir "$HOME/datasets/m3sciqa-full" --split test --top-k 5 --samples-output results/m3sciqa-agent-samples-test.json
 ```
 
 Each JSON sample contains the question, modality, image path, public reference paper/evidence fields, ranked paper IDs and scores, retrieval rank, citation match, and selected/expected tool. Hidden test answer text is omitted.
@@ -203,8 +204,6 @@ The tool-selection result exposes a current limitation: lexical routing misses m
 
 ## Latest Rerun (2026-10-31)
 
-The full test suite passed (**17 passed**). SciFact dev retrieval reproduced hit-rate@5 `0.7433`, recall@5 `0.7209`, and MRR@5 `0.6257`. M3SciQA agent metrics were recomputed on validation and test; local `llava:latest` was also run on 20 examples from each split. Validation llava results: exact match `0.0`, token F1 `0.1092` (3 figure, F1 `0.0503`; 17 table, F1 `0.1196`). Test answers are hidden, so its llava metrics are `null`; 20 predictions were saved.
+The full test suite passed (**16 tests**; output was reported by the test runner and is not stored as a separate log file). M3SciQA annotation metrics were recomputed on both validation and test. Local `llava:latest` inference ran on 20 validation examples, with exact match `0.0` and token F1 `0.1092` (3 figure examples: F1 `0.0503`; 17 table examples: F1 `0.1196`). The 20 test answers are hidden, so only predictions were saved; EM/F1 are unavailable.
 
-All latest outputs are in [results/rerun-2026-10-31/](results/rerun-2026-10-31/), indexed by [summary.json](results/rerun-2026-10-31/summary.json). Direct links: [offline demo](results/rerun-2026-10-31/offline-demo.txt), [battery query output](results/rerun-2026-10-31/battery-question.txt), [SciFact metrics](results/rerun-2026-10-31/scifact-retrieval-metrics.json), [M3SciQA validation metrics](results/rerun-2026-10-31/m3sciqa-validation-metrics.json), [M3SciQA test metrics](results/rerun-2026-10-31/m3sciqa-test-metrics.json), [validation sample traces](results/rerun-2026-10-31/m3sciqa-validation-samples.json), [test sample traces](results/rerun-2026-10-31/m3sciqa-test-samples.json), [validation llava predictions](results/rerun-2026-10-31/m3sciqa-validation-llava-20.jsonl), and [test llava predictions](results/rerun-2026-10-31/m3sciqa-test-llava-20-predictions.jsonl).
-
-Note: this rerun folder contains test-suite output from `pytest` in the session log only; the manifest records 17 passing tests. The saved CLI outputs and metrics listed above are the produced files.
+All rerun artifacts are in [results/rerun-2026-10-31/](results/rerun-2026-10-31/), indexed by [summary.json](results/rerun-2026-10-31/summary.json). Files include the [offline demo](results/rerun-2026-10-31/offline-demo.txt), [battery literature query output](results/rerun-2026-10-31/battery-question.txt), [M3SciQA validation metrics](results/rerun-2026-10-31/m3sciqa-validation-metrics.json), [M3SciQA test metrics](results/rerun-2026-10-31/m3sciqa-test-metrics.json), both M3SciQA sample traces, and both llava prediction files. The battery query is retrieval over paper abstracts, not a battery degradation regression experiment; no NASA cycle-level battery dataset or battery ML result is included in this project run.

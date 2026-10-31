@@ -1,12 +1,9 @@
 """Local scientific benchmark downloads and evaluation."""
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
-import io
 import json
 import os
 import re
-import shutil
-import tarfile
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -15,37 +12,9 @@ from typing import Callable, List, Optional, Sequence
 from .reranker import Reranker
 from .vision import analyze_images_with_ollama
 
-SCIFACT_ARCHIVE = "https://scifact.s3-us-west-2.amazonaws.com/release/latest/data.tar.gz"
 M3SCIQA_DATASET = "yale-nlp/M3SciQA"
 M3SCIQA_ROWS_API = "https://datasets-server.huggingface.co/rows"
 M3SCIQA_SPLITS = {"validation": 452, "test": 1000}
-
-
-def download_scifact(data_dir: str) -> None:
-    target_dir = Path(data_dir)
-    target_dir.mkdir(parents=True, exist_ok=True)
-    wanted = {"corpus.jsonl", "claims_dev.jsonl"}
-    existing = [target_dir / name for name in wanted if (target_dir / name).exists()]
-    if existing:
-        raise FileExistsError(f"Refusing to overwrite existing files: {existing}")
-    request = urllib.request.Request(
-        SCIFACT_ARCHIVE, headers={"User-Agent": "scientific-research-agent/1.0"}
-    )
-    with urllib.request.urlopen(request, timeout=60) as response:
-        archive_bytes = response.read()
-    with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
-        for member in archive.getmembers():
-            basename = Path(member.name).name
-            if basename not in wanted or not member.isfile():
-                continue
-            source = archive.extractfile(member)
-            if source is None:
-                continue
-            with source, (target_dir / basename).open("wb") as destination:
-                shutil.copyfileobj(source, destination)
-    missing = [name for name in wanted if not (target_dir / name).exists()]
-    if missing:
-        raise ValueError(f"SciFact archive is missing expected files: {missing}")
 
 
 def _read_jsonl(path: str) -> List[dict]:
@@ -347,48 +316,3 @@ def evaluate_m3sciqa(data_dir: str, model: Optional[str], split: str = "validati
     if output_file:
         metrics["predictions_file"] = str(output_file)
     return metrics
-
-
-def evaluate_scifact(corpus_path: str, claims_path: str, top_k: int = 5,
-                     limit: int = 0) -> dict:
-    corpus = _read_jsonl(corpus_path)
-    claims = _read_jsonl(claims_path)
-    documents: List[str] = []
-    document_ids: List[str] = []
-    for document in corpus:
-        doc_id = str(document["doc_id"])
-        title = document.get("title", "")
-        abstract = " ".join(document.get("abstract", []))
-        documents.append(f"[SciFact:{doc_id}] {title}\n{abstract}")
-        document_ids.append(doc_id)
-    id_by_document = dict(zip(documents, document_ids))
-    reranker = Reranker()
-    eligible = [claim for claim in claims if claim.get("cited_doc_ids")]
-    if limit:
-        eligible = eligible[:limit]
-    if not eligible:
-        raise ValueError("No evidence-bearing SciFact claims were found")
-
-    hits = 0
-    reciprocal_ranks = []
-    recall_scores = []
-    for claim in eligible:
-        gold_ids = {str(doc_id) for doc_id in claim["cited_doc_ids"]}
-        ranked = reranker.rerank(claim["claim"], documents, top_k)
-        ranked_ids = [id_by_document[document] for document, _ in ranked]
-        retrieved = set(ranked_ids)
-        hits += bool(gold_ids & retrieved)
-        recall_scores.append(len(gold_ids & retrieved) / len(gold_ids))
-        reciprocal_ranks.append(
-            1 / next((rank for rank, doc_id in enumerate(ranked_ids, 1)
-                      if doc_id in gold_ids), float("inf"))
-        )
-    count = len(eligible)
-    return {
-        "dataset": "SciFact dev",
-        "claims_evaluated": count,
-        "top_k": top_k,
-        "hit_rate_at_k": round(hits / count, 4),
-        "recall_at_k": round(sum(recall_scores) / count, 4),
-        "mrr_at_k": round(sum(reciprocal_ranks) / count, 4),
-    }

@@ -1,4 +1,4 @@
-"""CLI for collecting papers, asking questions, and evaluating SciFact retrieval."""
+"""CLI for collecting papers and running the scientific literature assistant."""
 import argparse
 import json
 import os
@@ -6,9 +6,7 @@ from pathlib import Path
 
 from llm_agents.benchmark import (
     download_m3sciqa,
-    download_scifact,
     evaluate_m3sciqa,
-    evaluate_scifact,
 )
 from llm_agents.evaluation import evaluate_m3sciqa_agent
 from llm_agents.papers import (
@@ -52,17 +50,15 @@ def main() -> None:
     dataset.add_argument("--data-dir", default="data/m3sciqa")
     dataset.add_argument("--split", choices=("validation", "test", "all"), default="all")
 
-    benchmark = commands.add_parser("benchmark", help="Evaluate on local M3SciQA or SciFact")
-    benchmark.add_argument("--dataset", choices=("m3sciqa", "scifact"), default="m3sciqa")
+    benchmark = commands.add_parser("benchmark", help="Evaluate multimodal answers on M3SciQA")
     benchmark.add_argument("--data-dir")
     benchmark.add_argument("--download", action="store_true")
     benchmark.add_argument("--split", choices=("validation", "test"), default="validation")
     benchmark.add_argument("--vision-model",
                            default=os.environ.get("OLLAMA_VISION_MODEL"),
                            help="Ollama vision model; defaults to OLLAMA_VISION_MODEL")
-    benchmark.add_argument("--top-k", type=int, default=5)
     benchmark.add_argument("--limit", type=int, default=0,
-                           help="Evaluate only the first N eligible claims")
+                           help="Evaluate only the first N examples")
     benchmark.add_argument("--output", help="Save per-example M3SciQA answers as JSONL")
     benchmark.add_argument("--augmentation-k", type=int, default=2,
                            help="Validation examples per test question; 0 disables augmentation")
@@ -118,32 +114,21 @@ def main() -> None:
             output_path.write_text(rendered + "\n", encoding="utf-8")
         print(rendered)
     elif args.command == "benchmark":
-        if args.dataset == "m3sciqa":
-            if not args.vision_model:
-                parser.error(
-                    "M3SciQA evaluation needs --vision-model or OLLAMA_VISION_MODEL"
-                )
-            data_dir = Path(args.data_dir or "data/m3sciqa")
-            if args.download and not (data_dir / f"{args.split}.jsonl").exists():
-                download_m3sciqa(str(data_dir), (args.split,))
-            metrics = evaluate_m3sciqa(
-                str(data_dir),
-                args.vision_model,
-                split=args.split,
-                limit=args.limit,
-                output_path=args.output,
-                augmentation_k=args.augmentation_k,
+        if not args.vision_model:
+            parser.error(
+                "M3SciQA evaluation needs --vision-model or OLLAMA_VISION_MODEL"
             )
-        else:
-            data_dir = Path(args.data_dir or "data/scifact")
-            if args.download:
-                download_scifact(str(data_dir))
-            metrics = evaluate_scifact(
-                str(data_dir / "corpus.jsonl"),
-                str(data_dir / "claims_dev.jsonl"),
-                top_k=args.top_k,
-                limit=args.limit,
-            )
+        data_dir = Path(args.data_dir or "data/m3sciqa")
+        if args.download and not (data_dir / f"{args.split}.jsonl").exists():
+            download_m3sciqa(str(data_dir), (args.split,))
+        metrics = evaluate_m3sciqa(
+            str(data_dir),
+            args.vision_model,
+            split=args.split,
+            limit=args.limit,
+            output_path=args.output,
+            augmentation_k=args.augmentation_k,
+        )
         print(json.dumps(metrics, indent=2))
     else:
         assistant = ResearchAssistant(sample_papers())

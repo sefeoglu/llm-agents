@@ -54,7 +54,7 @@ cover/
 
 # Downloaded benchmark and collected paper corpora
 data/scifact/
-data/m3sciqa/
+data/m3sciqa/images
 # data/arxiv_papers.jsonl
 # data/figures/
 
