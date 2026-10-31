@@ -57,6 +57,41 @@ PDF ingestion extracts selectable text and embedded raster images. `--render-pag
 
 The arXiv API call requires network access. The collector stores titles, authors, publication years, abstracts, source links, and PDF links as JSONL. Generated figure/page images and corpus data are kept under ignored `data/` paths. `data/arxiv_papers.jsonl` is present locally with 20 records; because automated search can return off-topic matches, inspect titles/abstracts and filter the corpus before using it as scientific evidence. If the file is absent in a fresh checkout, the demo uses its built-in sample corpus until papers are collected or a PDF is ingested.
 
+## Project Structure
+
+```text
+.
+├── config/                         # Local, untracked provider configuration
+├── data/                           # Local paper corpora and M3SciQA data/images
+├── doc/                            # Architecture, methodology, and assessment
+├── llm_agents/
+│   ├── benchmark.py                # Multimodal QA benchmark
+│   ├── evaluation.py               # Retrieval and tool-selection evaluation
+│   ├── evaluation/
+│   │   ├── evaluate_saved_qa.py    # Score saved QA predictions
+│   │   ├── rag-vs-vision-only.ipynb
+│   │   ├── tool_calling.ipynb
+│   │   └── validation/qa/          # QA metrics and analysis exports
+│   ├── llm.py                      # Ollama/OpenAI adapters
+│   ├── orchestrator.py             # Adaptive agent loop
+│   ├── papers.py                   # arXiv and PDF ingestion
+│   ├── research.py                 # Research tools and assistant
+│   ├── reranker.py                 # BM25 ranking
+│   ├── tools.py                    # Tool registry and calculator
+│   └── vision.py                   # OpenAI/Ollama image adapters
+├── results/
+│   ├── qa/validation/agentic-run-2026-10-31/
+│   │                                 # GPT vision QA predictions
+│   └── tool-calling/validation/agentic-run-2026-10-31/
+│                                     # GPT tool-selection metrics/samples
+├── tests/                          # Unit and integration tests
+├── main.py                          # CLI entry point
+├── requirements.txt
+└── README.md
+```
+
+`config/`, `data/`, and `results/` contain local configuration, datasets, or generated artifacts and may be untracked. Do not commit credentials from `config/gpt.json`.
+
 ## Architecture
 
 - Detailed component relationships, UML class model, and request/evaluation sequence diagrams are documented in [doc/system-architecture.md](doc/system-architecture.md).
