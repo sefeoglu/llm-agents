@@ -1,0 +1,83 @@
+{
+  "run_date": "2026-10-31",
+  "workspace": "llm-agents",
+  "dataset_files_modified": false,
+  "system_checks": {
+    "offline_demo_command": "python main.py",
+    "offline_demo_output": "offline-demo.txt",
+    "battery_query_command": "python main.py ask --corpus data/arxiv_papers.jsonl --question \"What evidence links early-cycle measurements with battery cycle-life prediction?\"",
+    "battery_query_output": "battery-question.txt",
+    "test_command": "/Users/sefika/projects/llm-agents/.venv/bin/python -m pytest -q",
+    "tests_passed": 17,
+    "tests_failed": 0
+  },
+  "scifact": {
+    "command": "python main.py benchmark --dataset scifact --data-dir data/scifact --top-k 5",
+    "output": "scifact-retrieval-metrics.json",
+    "metrics": {
+      "dataset": "SciFact dev",
+      "claims_evaluated": 300,
+      "top_k": 5,
+      "hit_rate_at_k": 0.7433,
+      "recall_at_k": 0.7209,
+      "mrr_at_k": 0.6257
+    }
+  },
+  "m3sciqa_agent_metrics": {
+    "validation": {
+      "command": "python main.py evaluate-agent --data-dir data/m3sciqa --split validation --top-k 5",
+      "metrics_file": "m3sciqa-validation-metrics.json",
+      "samples_file": "m3sciqa-validation-samples.json",
+      "examples": 452,
+      "retrieval_examples": 450,
+      "recall_at_5": 0.8533,
+      "mrr_at_5": 0.7855,
+      "citation_correctness_top1_id": 0.74,
+      "tool_selection_accuracy": 0.3407
+    },
+    "test": {
+      "command": "python main.py evaluate-agent --data-dir data/m3sciqa --split test --top-k 5",
+      "metrics_file": "m3sciqa-test-metrics.json",
+      "samples_file": "m3sciqa-test-samples.json",
+      "examples": 1000,
+      "retrieval_examples": 997,
+      "recall_at_5": 0.8837,
+      "mrr_at_5": 0.813,
+      "citation_correctness_top1_id": 0.7673,
+      "tool_selection_accuracy": 0.356,
+      "answer_labels_available": false,
+      "note": "These annotation-based metrics do not measure answer correctness; the test answer labels are hidden."
+    }
+  },
+  "m3sciqa_vision_inference": {
+    "runtime": "Ollama",
+    "model": "llava:latest",
+    "validation": {
+      "command": "OLLAMA_VISION_MODEL=llava python main.py benchmark --dataset m3sciqa --data-dir data/m3sciqa --split validation --limit 20",
+      "metrics_file": "m3sciqa-validation-llava-20-metrics.json",
+      "predictions_file": "m3sciqa-validation-llava-20.jsonl",
+      "examples": 20,
+      "exact_match": 0.0,
+      "token_f1": 0.1092,
+      "by_modality": {
+        "figure": {"examples": 3, "token_f1": 0.0503},
+        "table": {"examples": 17, "token_f1": 0.1196}
+      }
+    },
+    "test": {
+      "command": "OLLAMA_VISION_MODEL=llava python main.py benchmark --dataset m3sciqa --data-dir data/m3sciqa --split test --limit 20 --augmentation-k 2",
+      "metrics_file": "m3sciqa-test-llava-20-metrics.json",
+      "predictions_file": "m3sciqa-test-llava-20-predictions.jsonl",
+      "examples": 20,
+      "answer_labels_available": false,
+      "exact_match": null,
+      "token_f1": null,
+      "by_modality": {
+        "figure": {"examples": 7, "labeled_examples": 0, "token_f1": null},
+        "table": {"examples": 13, "labeled_examples": 0, "token_f1": null}
+      },
+      "validation_demonstrations_per_test_example": 2
+    }
+  },
+  "outputs_directory": "results/rerun-2026-10-31/"
+}

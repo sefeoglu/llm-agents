@@ -1,0 +1,8 @@
+{
+  "dataset": "SciFact dev",
+  "claims_evaluated": 300,
+  "top_k": 5,
+  "hit_rate_at_k": 0.7433,
+  "recall_at_k": 0.7209,
+  "mrr_at_k": 0.6257
+}

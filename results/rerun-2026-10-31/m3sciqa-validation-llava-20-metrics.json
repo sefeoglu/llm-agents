@@ -1,0 +1,27 @@
+{
+  "dataset": "M3SciQA",
+  "split": "validation",
+  "examples_evaluated": 20,
+  "labeled_examples": 20,
+  "vision_model": "llava",
+  "augmentation": {
+    "source_split": null,
+    "examples_per_test_case": 0
+  },
+  "exact_match": 0.0,
+  "token_f1": 0.1092,
+  "image_examples": 20,
+  "by_modality": {
+    "figure": {
+      "examples": 3,
+      "labeled_examples": 3,
+      "token_f1": 0.0503
+    },
+    "table": {
+      "examples": 17,
+      "labeled_examples": 17,
+      "token_f1": 0.1196
+    }
+  },
+  "predictions_file": "/Users/sefika/projects/llm-agents/results/rerun-2026-10-31/m3sciqa-validation-llava-20.jsonl"
+}

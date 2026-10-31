@@ -1,0 +1,7 @@
+[arXiv:2204.12420v2] Interpretable Battery Cycle Life Range Prediction Using Early Degradation Data at Cell Level (2022)
+Authors: Huang Zhang, Yang Su, Faisal Altaf, Torsten Wik, Sebastien Gros
+Evidence text: Battery cycle life prediction using early degradation data has many potential applications throughout the battery product life cycle. For that reason, various data-driven methods have been proposed for point prediction of battery cycle life with minimum knowledge of the battery degradation mechanisms. However, managing the rapidly increasing amounts of batteries at end-of-life with lower economic and technical risk requires prediction of cycle life with quantified uncertainty, which is still lacking. The interpretability (i.e., the reason for high prediction accuracy) of these advanced data-driven methods is also worthy of investigation. Here, a Quantile Regression Forest (QRF) model, having the advantage of not assuming any specific distribution of cycle life, is introduced to make cycle life range prediction with uncertainty quantified as the width of the prediction interval, in addition to point predictions with high accuracy. The hyperparameters of the QRF model are optimized with a proposed alpha-logistic-weighted criterion so that the coverage probabilities associated with the prediction intervals are calibrated. The interpretability of the final QRF model is explored with two global model-agnostic methods, namely permutation importance and partial dependence plot.
+
+Source: https://arxiv.org/abs/2204.12420v2
+
+Tool used: search

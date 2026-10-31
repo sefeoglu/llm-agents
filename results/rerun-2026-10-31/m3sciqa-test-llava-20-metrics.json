@@ -1,0 +1,28 @@
+{
+  "dataset": "M3SciQA",
+  "split": "test",
+  "examples_evaluated": 20,
+  "labeled_examples": 0,
+  "vision_model": "llava",
+  "augmentation": {
+    "source_split": "validation",
+    "examples_per_test_case": 2
+  },
+  "exact_match": null,
+  "token_f1": null,
+  "image_examples": 20,
+  "by_modality": {
+    "figure": {
+      "examples": 7,
+      "labeled_examples": 0,
+      "token_f1": null
+    },
+    "table": {
+      "examples": 13,
+      "labeled_examples": 0,
+      "token_f1": null
+    }
+  },
+  "scoring_note": "This split has no public answer labels; predictions are saved but exact match and token F1 are not computable.",
+  "predictions_file": "/Users/sefika/projects/llm-agents/results/rerun-2026-10-31/m3sciqa-test-llava-20-predictions.jsonl"
+}

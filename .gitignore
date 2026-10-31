@@ -55,8 +55,8 @@ cover/
 # Downloaded benchmark and collected paper corpora
 data/scifact/
 data/m3sciqa/
-data/arxiv_papers.jsonl
-data/figures/
+# data/arxiv_papers.jsonl
+# data/figures/
 
 # Translations
 *.mo

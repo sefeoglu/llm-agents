@@ -6,8 +6,10 @@ This document models the current `llm_agents` implementation. It describes the i
 
 The project has two related but distinct flows:
 
-1. Interactive research: paper records are collected or ingested, indexed as text, and queried through a bounded tool loop.
-2. Offline evaluation: the benchmark runner uses M3SciQA annotations to measure retrieval, citation-ID matching, and routing. M3SciQA inference can also send local images to Ollama, but that inference path is separate from the text agent loop.
+1. Interactive research: arXiv paper records are collected or PDFs are ingested, indexed as text, and queried through a bounded tool loop. The current local arXiv corpus has battery-degradation/cycle-life search results; the no-argument CLI demo still uses a small generic RAG sample corpus.
+2. Offline evaluation: the benchmark runner uses M3SciQA annotations to measure retrieval, citation-ID matching, and routing. M3SciQA inference can also send local images to **Ollama**, but that inference path is separate from the text agent loop.
+
+The project does not include or have local access to the NASA PCoE battery dataset. An attempted archive download was incomplete and unusable; it is not part of the project data. Consequently, no battery lifetime regression experiment or score is claimed.
 
 ```mermaid
 flowchart LR
@@ -99,8 +101,10 @@ classDiagram
         +figures List~dict~
         +indexed_text() str
     }
-    class OllamaVisionAdapter {
-        +analyze_image(path, prompt, model) str
+    class VisionModule {
+        <<module: vision.py>>
+        +analyze_image_with_ollama(path, prompt, model) str
+        +analyze_images_with_ollama(paths, prompt, model) str
     }
 
     LLM <|-- RuleBasedLLM
@@ -113,7 +117,7 @@ classDiagram
     Agent --> ToolRegistry : calls selected tool
     Agent --> Reranker : reranks search results
     ToolRegistry o-- Tool : stores
-    ResearchAssistant ..> OllamaVisionAdapter : optional figure analysis
+    ResearchAssistant ..> VisionModule : optional figure analysis
 ```
 
 `LLM` is an interface-like base class; `RuleBasedLLM` and `ResearchLLM` make decisions. The registry stores callable tool wrappers, not independent autonomous agents. `ResearchAssistant` creates `Agent` and registers closures/methods for retrieval, trends, and figure inspection.
@@ -129,7 +133,7 @@ sequenceDiagram
     participant A as Agent
     participant TR as ToolRegistry
     participant RR as Reranker
-    participant V as OllamaVisionAdapter
+    participant V as vision.py Ollama adapter
 
     User->>CLI: ask --question Q
     CLI->>RA: run(Q)
@@ -175,13 +179,13 @@ sequenceDiagram
     actor Evaluator
     participant CLI as evaluate-agent CLI
     participant E as evaluate_m3sciqa_agent
-    participant D as M3SciQA validation JSONL
+    participant D as selected M3SciQA split JSONL
     participant RR as BM25 Reranker
     participant R as ResearchLLM
     participant O as JSON result
 
-    Evaluator->>CLI: evaluate-agent --split validation --top-k 5
-    CLI->>E: evaluate(data_dir, validation, 5)
+    Evaluator->>CLI: evaluate-agent --split validation or test --top-k 5
+    CLI->>E: evaluate(data_dir, split, 5)
     E->>D: load rows
     loop each row with reference evidence and paper ID
         E->>RR: rank evidence corpus using question
@@ -197,7 +201,7 @@ sequenceDiagram
     O-->>Evaluator: JSON output
 ```
 
-The candidate evidence corpus is formed from the public `evidence_reference` annotations grouped by `reference_arxiv_id`; answer and explanation fields are excluded. Because the reference annotations create the candidate evidence set, this evaluation measures ranking within annotated evidence, not open-corpus retrieval. Test labels are hidden and the scored evaluator rejects the test split.
+The candidate evidence corpus is formed from the selected split's public `evidence_reference` annotations grouped by `reference_arxiv_id`; answer and explanation fields are excluded. Because reference annotations create the candidate evidence set, this evaluation measures ranking within annotated evidence, not open-corpus retrieval. The validation split has answer labels; the test split does not. The four annotation-based retrieval/routing metrics can run on both splits, but answer correctness or answer-generation EM/F1 cannot be scored on test.
 
 ## Storage and Data Flow
 
@@ -210,10 +214,11 @@ The candidate evidence corpus is formed from the public `evidence_reference` ann
 
 ## Design Choices and Limitations
 
-- **Small dependency surface:** standard-library HTTP/JSON/XML and a custom BM25 implementation keep basic paper search and routing light; PyMuPDF handles PDFs, and Ollama is optional for vision.
-- **Bounded tool execution:** a small `Agent` loop with a maximum step count keeps traces inspectable and prevents runaway tool calls.
-- **Explainable routing:** `ResearchLLM` uses explicit question cues. This is easy to test but accounts for the measured tool-selection accuracy of only 0.3407 on the M3SciQA validation labels; implicit visual questions are often missed.
-- **Retrieval limitations:** first-stage candidate retrieval is token overlap, not dense embeddings. BM25 is applied to those candidates. There is no vector-only/hybrid ablation in the current evaluation.
-- **Citation limitation:** paper-ID match is a proxy; semantic support correctness requires human labels or a separately validated entailment model.
-- **Multimodal limitation:** PDF images are extracted/rendered, but vector plots require page rendering, scanned PDFs have no OCR, and the current interactive baseline reports a vision description rather than synthesizing a fully cited answer.
-- **Battery topic status:** the project’s current paper/sample corpus is still RAG-focused, not battery-degradation-focused. The NASA battery archive present during investigation was incomplete and invalid as a ZIP; it was not used for a regression result. The methodology should not present a battery ML score until a valid dataset and group-wise split are available.
+- **Small, inspectable runtime:** arXiv collection and JSON/XML processing use the Python standard library; PyMuPDF handles PDFs; BM25 and tokenization are implemented locally. This keeps setup modest, but there is no sentence-transformer embedding model or FAISS index.
+- **Bounded tool orchestration:** `Agent` applies a maximum-step loop and records tool calls/results in a trace. The trace is useful for debugging and evaluation; tool failures are not yet normalized into a structured retry/abstention policy.
+- **Deterministic tool selection:** `ResearchLLM` routes using explicit regex/keyword cues instead of model tool-calling. This is easy to reproduce but brittle: measured tool-selection accuracy is 0.3407 on validation and 0.3560 on test under the benchmark's visual-tool label rule.
+- **Two-stage lexical retrieval:** `_retrieve()` first filters by token overlap, then BM25 ranks candidates. This is lightweight, but a relevant document with no shared query tokens is lost before BM25; no dense retrieval or vector-only/hybrid ablation has been run.
+- **Citation scope:** interactive retrieval returns source identifiers/URLs with the selected evidence text. The M3SciQA citation metric only checks whether the top-ranked arXiv ID equals `reference_arxiv_id`; it does not judge whether the text entails the answer. The M3SciQA retrieval corpus is formed from annotated `evidence_reference` passages, so its Recall/MRR results measure ranking within annotated evidence, not open-corpus retrieval.
+- **Multimodal boundary:** PDF ingestion extracts selectable text and embedded raster images; optional page rendering captures vector content. Scanned PDFs have no OCR. Interactive figure inspection can request a local Ollama description, but the default deterministic agent does not synthesize a complete, multi-paper, evidence-cited answer from the vision output.
+- **Evaluation labels:** M3SciQA validation has answer labels, while the public test answers are blank/hidden. Test retrieval, ID-match, and routing metrics are calculable from released annotations; EM/F1 or answer correctness is not. Never interpret empty-reference test scores as zero model quality.
+- **Local data and vision privacy:** the M3SciQA corpus/images are local. When Ollama vision is enabled, image bytes go to the configured local Ollama service; arXiv collection requires network access. No remote model API is used by the default deterministic agent.

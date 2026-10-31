@@ -1,0 +1,13 @@
+Q: What evidence does RAG use for knowledge-intensive tasks?
+A: [arXiv:2005.11401] Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks (2020)
+Authors: Lewis et al.
+Evidence text: Curated summary: retrieval-augmented generation combines a parametric sequence model with non-parametric retrieved passages and reports improvements on knowledge-intensive NLP tasks.
+
+Source: https://arxiv.org/abs/2005.11401
+
+Q: How has the RAG literature changed over time?
+A: The corpus contains 4 papers from 2017 to 2023. Annual counts are {2017: 1, 2018: 1, 2020: 1, 2023: 1}; the fitted linear trend is decreasing (-0.07 papers/year). This describes the collected corpus, not the field as a whole.
+
+Q: Compute 12 * (3 + 4)
+A: 84
+

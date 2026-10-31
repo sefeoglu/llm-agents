@@ -1,10 +1,12 @@
 # Scientific Literature Research Agent
 
-A compact, offline-capable research assistant for retrieval-augmented generation (RAG) papers. The sample corpus is a few curated summaries; collect live arXiv abstracts to use real paper records. The deterministic baseline quotes retrieved evidence and keeps source IDs/URLs in the answer rather than inventing synthesis.
+**Scientific Literature Research Agent** is a small CLI prototype for scientific literature research, configured here around machine learning for battery degradation and cycle-life prediction. Its orchestration layer runs a bounded agent loop: a rule-based router selects tools dynamically, `ToolRegistry` dispatches calls, and every call is recorded in an inspectable trace. Available tools cover arXiv literature search, BM25 paper retrieval, safe arithmetic, publication-trend analysis, and PDF figure/table inspection with optional local Ollama vision. Separate evaluation commands measure M3SciQA retrieval, citation-ID matching, tool selection, and multimodal answers where labels are available.
+
+This is a transparent deterministic prototype, not a hosted generative chatbot. The local arXiv corpus contains 20 automated search results about battery degradation/cycle life with abstracts; these are candidate records and require relevance review. The default `python main.py` examples are still generic RAG/calculator demonstrations, not battery analysis. The separate battery question command demonstrates retrieval from the local battery paper corpus, but this project does not currently run a battery lifetime regression experiment or claim a battery-model score.
 
 ## Run
 
-Python 3.10+. Install the PDF extraction dependency and run the offline sample:
+Python 3.10+. Install the pinned package snapshot from the configured project environment and run the offline sample:
 
 ```bash
 python -m pip install -r requirements.txt
@@ -12,11 +14,11 @@ python main.py
 python -m pytest -q
 ```
 
-Collect up to 25 relevant records from arXiv and ask questions against them:
+Collect up to 25 candidate records from arXiv and ask a battery research question against the local corpus:
 
 ```bash
-python main.py collect --query "retrieval augmented generation" --max-results 25
-python main.py ask --corpus data/arxiv_papers.jsonl --question "What evidence supports RAG for knowledge-intensive tasks?"
+python main.py collect --query "battery degradation machine learning cycle life prediction" --max-results 25
+python main.py ask --corpus data/arxiv_papers.jsonl --question "What evidence links early-cycle measurements with battery cycle-life prediction?"
 ```
 
 Index a downloaded paper PDF, including embedded figures, then ask a figure-specific question:
@@ -28,7 +30,7 @@ OLLAMA_VISION_MODEL=llava python main.py ask --corpus data/arxiv_papers.jsonl --
 
 PDF ingestion extracts selectable text and embedded raster images. `--render-pages` also saves page images so vector charts and tables can be inspected visually. Figure questions use the optional local Ollama vision API at `127.0.0.1:11434`; set `OLLAMA_VISION_MODEL` to an installed vision-capable model. Images are sent only to that local Ollama service. Without a configured model, the tool still retrieves the image and nearby page text and states that visual interpretation is unavailable. Scanned PDF text is not OCR-processed.
 
-The arXiv API call requires network access. The collector stores titles, authors, publication years, abstracts, source links, and PDF links as JSONL. Generated figure/page images and corpus data are kept under ignored `data/` paths. The current workspace has no `data/arxiv_papers.jsonl`; asking with that default path uses the built-in offline sample corpus until you collect papers or ingest a PDF.
+The arXiv API call requires network access. The collector stores titles, authors, publication years, abstracts, source links, and PDF links as JSONL. Generated figure/page images and corpus data are kept under ignored `data/` paths. `data/arxiv_papers.jsonl` is present locally with 20 records; because automated search can return off-topic matches, inspect titles/abstracts and filter the corpus before using it as scientific evidence. If the file is absent in a fresh checkout, the offline demo uses its built-in sample corpus until papers are collected or a PDF is ingested.
 
 ## Architecture
 
@@ -40,7 +42,7 @@ The arXiv API call requires network access. The collector stores titles, authors
 - `benchmark.py` downloads the official SciFact dev split and corpus on demand, then reports evidence-document hit rate, recall@k, and MRR@k.
 - `main.py` provides collection, PDF ingestion, question-answering, and benchmark commands.
 
-This is a deterministic agent baseline, not a generative model. Replace `ResearchLLM` with an implementation backed by a chosen model for synthesized answers; preserve cited evidence and abstain when retrieval returns no relevant documents.
+The interactive agent is a deterministic routing baseline, not a generative answer model. The optional Ollama model is currently used for image descriptions and M3SciQA inference. A battery-focused regression experiment and synthesized, evidence-grounded battery answers are not implemented yet.
 
 ## Example
 
@@ -62,7 +64,7 @@ The offline sample summaries are paraphrases, not the published abstracts. Outpu
 
 ## Multimodal Examples
 
-These are real outputs from `llava:latest` on the first three M3SciQA validation examples. All three are table-image questions. Model responses below are shortened excerpts. The corresponding inputs, reference evidence, and retrieval/tool-routing outputs are available in [results/m3sciqa-agent-samples-validation.json](results/m3sciqa-agent-samples-validation.json). That file does not contain the llava-generated answer text; the historical llava JSONL output file is not present in the current workspace.
+These are historical outputs from `llava:latest` on the first three M3SciQA validation examples. All three are table-image questions. Model responses below are shortened excerpts. The corresponding inputs, reference evidence, and retrieval/tool-routing outputs are available in [the dated validation sample trace](results/rerun-2026-10-31/m3sciqa-validation-samples.json). That artifact does not contain llava-generated answer text; the original three-answer JSONL file is not present in the current workspace. Fresh 20-example inference outputs are available in the dated rerun directory linked below.
 
 ```text
 Q: How does the method that scores 28.62 in WQ-B address word-level and structure-level diversity?
@@ -98,17 +100,17 @@ OLLAMA_VISION_MODEL=llava python main.py benchmark --dataset m3sciqa --data-dir 
 OLLAMA_VISION_MODEL=llava python main.py benchmark --dataset m3sciqa --data-dir data/m3sciqa --split test --limit 20 --augmentation-k 2 --output results/m3sciqa-test-llava-20-validation-augmented-unscored.jsonl
 ```
 
-For validation runs, normalized exact match and token F1 are measured against the public reference answers. For test runs, the evaluator uses up to two BM25-selected validation examples, including their images and known Q/A, as few-shot demonstrations; the test answer is never placed in the prompt. The official M3SciQA test split has blank/hidden answer labels, so test runs are prediction-only and report metrics as `null`, not zero. Validation examples are never added to validation prompts. The `--output` files shown above are created when those commands are run; they are not currently present in this workspace. The available test inputs and retrieval/tool outputs are in [results/m3sciqa-agent-samples-test.json](results/m3sciqa-agent-samples-test.json). JSONL inference records include each question, model answer, available reference answer, modality, paper IDs, local image path, selected validation row IDs, and per-example metrics. Records are flushed as examples finish, so completed answers remain saved if a later example fails. Images stay on disk locally and are sent only to the configured local Ollama server.
+For validation runs, normalized exact match and token F1 are measured against the public reference answers. For test runs, the evaluator uses up to two BM25-selected validation examples, including their images and known Q/A, as few-shot demonstrations; the test answer is never placed in the prompt. The official M3SciQA test split has blank/hidden answer labels, so test runs are prediction-only and report metrics as `null`, not zero. Validation examples are never added to validation prompts. The `--output` files shown above are created when those commands are run; they are not present in the current workspace. Available test inputs and retrieval/tool outputs are in [the dated test sample trace](results/rerun-2026-10-31/m3sciqa-test-samples.json). JSONL inference records include each question, model answer, available reference answer, modality, paper IDs, local image path, selected validation row IDs, and per-example metrics. Records are flushed as examples finish, so completed answers remain saved if a later example fails. Images stay on disk locally and are sent only to the configured local Ollama server.
 
-Measured evaluation results are recorded in [results/run-results.json](results/run-results.json). The BM25 SciFact dev baseline at k=5 reached hit rate 0.7433, recall 0.7209, and MRR 0.6257 over 300 claims. On 100 labeled M3SciQA validation examples with local `llava:latest`, normalized exact match was 0.0 and token F1 was 0.1191 (31 figure examples: 0.0838 F1; 69 table examples: 0.1349 F1). These llava predictions are not included as files in the current workspace. The official M3SciQA test split has no public answer labels, so its predictions cannot be assigned EM/F1; earlier test-run `0.0` scores were artifacts of treating blank references as labels and must not be interpreted as model quality. Use validation metrics for scoring and test only for saved predictions or external/hidden-label evaluation.
+Measured evaluation results are recorded in the dated rerun directory described below. The official M3SciQA test split has no public answer labels, so its predictions cannot be assigned EM/F1; earlier test-run `0.0` scores were artifacts of treating blank references as labels and must not be interpreted as model quality. Use validation for answer scoring; test can be used for annotation-based retrieval/routing metrics or saved predictions only.
 
 The previous text-only SciFact evidence retrieval evaluation remains available as a separate task:
 
 ```bash
-python main.py benchmark --dataset scifact --download --data-dir data/scifact
+python main.py benchmark --dataset scifact --data-dir data/scifact
 ```
 
-It reports hit-rate@k, recall@k, and MRR@k over SciFact dev evidence document IDs; its previous full-split BM25 result was 0.7433, 0.7209, and 0.6257 respectively at k=5. This is a separate text retrieval benchmark and does not measure multimodal answer quality.
+It reports hit-rate@k, recall@k, and MRR@k over SciFact dev evidence document IDs; the latest full-split BM25 result was 0.7433, 0.7209, and 0.6257 respectively at k=5. The corpus and claims are already local under `data/scifact/`; omit `--download` because the downloader refuses to overwrite existing files. This is a separate text retrieval benchmark and does not measure multimodal answer quality.
 
 ## Agent Evaluation Metrics
 
@@ -154,7 +156,7 @@ Top citation match: true
 Selected tool / expected tool: inspect_figures / inspect_figures
 ```
 
-These are retrieval and routing traces, not generated final-answer transcripts. The full 452-row input/output JSON is [results/m3sciqa-agent-samples-validation.json](results/m3sciqa-agent-samples-validation.json); all 1,000 test traces are in [results/m3sciqa-agent-samples-test.json](results/m3sciqa-agent-samples-test.json).
+These are retrieval and routing traces, not generated final-answer transcripts. The full 452-row input/output JSON is [validation samples](results/rerun-2026-10-31/m3sciqa-validation-samples.json); all 1,000 test traces are in [test samples](results/rerun-2026-10-31/m3sciqa-test-samples.json).
 
 The evaluation uses `evidence_reference` passages grouped by `reference_arxiv_id`; answer and explanation fields are not put in the retrieval corpus. The gold evidence ID is the row's `reference_arxiv_id`. Recall@5 and MRR use the first relevant reference paper; citation correctness checks whether the baseline's top-ranked paper ID matches that reference. This citation metric is an ID-match proxy, not a human semantic-entailment judgment. Tool selection is scored against `inspect_figures` for rows labeled figure/table, since each M3SciQA example includes an image. The test split has hidden answer labels, so these metrics assess only the released retrieval/reference annotations and modality; they do not score answer correctness.
 
@@ -165,4 +167,12 @@ Full split results:
 | Validation (452 rows; 450 retrieval-eligible) | 0.8533 | 0.7855 | 0.7400 | 0.3407 |
 | Test (1,000 rows; 997 retrieval-eligible) | 0.8837 | 0.8130 | 0.7673 | 0.3560 |
 
-The tool-selection result exposes a current limitation: lexical routing misses many M3SciQA questions that require an image even when their wording does not explicitly mention a figure or table. Test results are not answer-quality scores because answer labels are hidden. Results are saved in [validation metrics](results/m3sciqa-agent-metrics-validation.json), [test metrics](results/m3sciqa-agent-metrics-test.json), [validation sample I/O](results/m3sciqa-agent-samples-validation.json), and [test sample I/O](results/m3sciqa-agent-samples-test.json).
+The tool-selection result exposes a current limitation: lexical routing misses many M3SciQA questions that require an image even when their wording does not explicitly mention a figure or table. Test results are not answer-quality scores because answer labels are hidden. Current aggregate metrics and sample traces are saved under `results/rerun-2026-10-31/`.
+
+## Latest Rerun (2026-10-31)
+
+The full test suite passed (**17 passed**). SciFact dev retrieval reproduced hit-rate@5 `0.7433`, recall@5 `0.7209`, and MRR@5 `0.6257`. M3SciQA agent metrics were recomputed on validation and test; local `llava:latest` was also run on 20 examples from each split. Validation llava results: exact match `0.0`, token F1 `0.1092` (3 figure, F1 `0.0503`; 17 table, F1 `0.1196`). Test answers are hidden, so its llava metrics are `null`; 20 predictions were saved.
+
+All latest outputs are in [results/rerun-2026-10-31/](results/rerun-2026-10-31/), indexed by [summary.json](results/rerun-2026-10-31/summary.json). Direct links: [offline demo](results/rerun-2026-10-31/offline-demo.txt), [battery query output](results/rerun-2026-10-31/battery-question.txt), [SciFact metrics](results/rerun-2026-10-31/scifact-retrieval-metrics.json), [M3SciQA validation metrics](results/rerun-2026-10-31/m3sciqa-validation-metrics.json), [M3SciQA test metrics](results/rerun-2026-10-31/m3sciqa-test-metrics.json), [validation sample traces](results/rerun-2026-10-31/m3sciqa-validation-samples.json), [test sample traces](results/rerun-2026-10-31/m3sciqa-test-samples.json), [validation llava predictions](results/rerun-2026-10-31/m3sciqa-validation-llava-20.jsonl), and [test llava predictions](results/rerun-2026-10-31/m3sciqa-test-llava-20-predictions.jsonl).
+
+Note: this rerun folder contains test-suite output from `pytest` in the session log only; the manifest records 17 passing tests. The saved CLI outputs and metrics listed above are the produced files.

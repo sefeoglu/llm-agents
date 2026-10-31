@@ -12,5 +12,6 @@
   "tool_selection_accuracy": 0.3407,
   "citation_metric_note": "The baseline cites its top-ranked passage. Correctness is a paper-ID match against reference_arxiv_id; it does not establish semantic entailment.",
   "tool_selection_note": "Expected tool is inspect_figures for every row whose M3SciQA modality is figure or table; accuracy measures the router's first tool decision.",
-  "retrieval_corpus_note": "Candidate text uses only public evidence_reference annotations grouped by reference_arxiv_id; answer/reference explanations are not indexed."
+  "retrieval_corpus_note": "Candidate text uses only public evidence_reference annotations grouped by reference_arxiv_id; answer/reference explanations are not indexed.",
+  "samples_output_file": "/Users/sefika/projects/llm-agents/results/rerun-2026-10-31/m3sciqa-validation-samples.json"
 }
