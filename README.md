@@ -1,8 +1,11 @@
 # Scientific Literature Research Agent
 
-**Scientific Literature Research Agent** is a small CLI prototype for scientific literature research, configured here around machine learning for battery degradation and cycle-life prediction. Its orchestration layer runs a bounded agent loop: a rule-based router selects tools dynamically, `ToolRegistry` dispatches calls, and every call is recorded in an inspectable trace. Available tools cover arXiv literature search, BM25 paper retrieval, safe arithmetic, publication-trend analysis, and PDF figure/table inspection with optional local Ollama vision. Separate evaluation commands measure M3SciQA retrieval, citation-ID matching, tool selection, and multimodal answers where labels are available.
+**Note** This is a basic prototype rather than a full agentic work and is evaluated on a small dataset. 
+
+**Scientific Literature Research Agent** is a small CLI prototype for scientific literature research. Its **orchestration layer** runs a bounded agent loop: a rule-based router selects tools dynamically, `ToolRegistry` dispatches calls, and every call is recorded in an inspectable trace. Available tools cover arXiv literature search, **BM25** paper retrieval, safe arithmetic, publication-trend analysis, and PDF figure/table inspection with optional local **Ollama** vision. Separate evaluation commands measure **M3SciQA** retrieval, **citation-ID** matching, **tool selection**, and **multimodal answers** where labels are available.
 
 This is a transparent deterministic prototype, not a hosted generative chatbot. The local arXiv corpus contains 20 automated search results about battery degradation/cycle life with abstracts; these are candidate records and require relevance review. The default `python main.py` examples are still generic RAG/calculator demonstrations, not battery analysis. The separate battery question command demonstrates retrieval from the local battery paper corpus, but this project does not currently run a battery lifetime regression experiment or claim a battery-model score.
+
 
 ## Run
 
