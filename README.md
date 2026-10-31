@@ -28,7 +28,7 @@ OLLAMA_VISION_MODEL=llava python main.py ask --corpus data/arxiv_papers.jsonl --
 
 PDF ingestion extracts selectable text and embedded raster images. `--render-pages` also saves page images so vector charts and tables can be inspected visually. Figure questions use the optional local Ollama vision API at `127.0.0.1:11434`; set `OLLAMA_VISION_MODEL` to an installed vision-capable model. Images are sent only to that local Ollama service. Without a configured model, the tool still retrieves the image and nearby page text and states that visual interpretation is unavailable. Scanned PDF text is not OCR-processed.
 
-The arXiv API call requires network access. The collector stores titles, authors, publication years, abstracts, source links, and PDF links as JSONL. Generated figure/page images and corpus data are kept under ignored `data/` paths.
+The arXiv API call requires network access. The collector stores titles, authors, publication years, abstracts, source links, and PDF links as JSONL. Generated figure/page images and corpus data are kept under ignored `data/` paths. The current workspace has no `data/arxiv_papers.jsonl`; asking with that default path uses the built-in offline sample corpus until you collect papers or ingest a PDF.
 
 ## Architecture
 
@@ -62,7 +62,7 @@ The offline sample summaries are paraphrases, not the published abstracts. Outpu
 
 ## Multimodal Examples
 
-These are real outputs from `llava:latest` on the first three M3SciQA validation examples. All three are table-image questions. Model responses below are shortened excerpts; full responses, reference answers, image paths, and per-example scores are saved in [results/m3sciqa-validation-llava-examples.jsonl](results/m3sciqa-validation-llava-examples.jsonl).
+These are real outputs from `llava:latest` on the first three M3SciQA validation examples. All three are table-image questions. Model responses below are shortened excerpts. The corresponding inputs, reference evidence, and retrieval/tool-routing outputs are available in [results/m3sciqa-agent-samples-validation.json](results/m3sciqa-agent-samples-validation.json). That file does not contain the llava-generated answer text; the historical llava JSONL output file is not present in the current workspace.
 
 ```text
 Q: How does the method that scores 28.62 in WQ-B address word-level and structure-level diversity?
@@ -88,7 +88,7 @@ The benchmark dataset is the official [Yale NLP M3SciQA](https://huggingface.co/
 python main.py download-m3sciqa --data-dir data/m3sciqa --split all
 ```
 
-This creates `data/m3sciqa/validation.jsonl`, `data/m3sciqa/test.jsonl`, and `data/m3sciqa/images/{validation,test}/`. The downloader replaces remote image URLs with local relative paths. Those files are ignored by Git and remain available locally.
+These files are already available locally: `data/m3sciqa/validation.jsonl`, `data/m3sciqa/test.jsonl`, and `data/m3sciqa/images/{validation,test}/` (452 validation and 1,000 test images). The download command is repeatable and reports existing complete splits; the data paths are ignored by Git. The supplied SciFact corpus and development claims are also available under `data/scifact/`.
 
 Install and start a local Ollama vision model, then evaluate on validation (held-out test is also selectable):
 
@@ -98,9 +98,9 @@ OLLAMA_VISION_MODEL=llava python main.py benchmark --dataset m3sciqa --data-dir 
 OLLAMA_VISION_MODEL=llava python main.py benchmark --dataset m3sciqa --data-dir data/m3sciqa --split test --limit 20 --augmentation-k 2 --output results/m3sciqa-test-llava-20-validation-augmented-unscored.jsonl
 ```
 
-For validation runs, normalized exact match and token F1 are measured against the public reference answers. For test runs, the evaluator uses up to two BM25-selected validation examples, including their images and known Q/A, as few-shot demonstrations; the test answer is never placed in the prompt. The official M3SciQA test split has blank/hidden answer labels, so test runs are prediction-only and report metrics as `null`, not zero. Validation examples are never added to validation prompts. For example, the saved 20-case augmented test run is [results/m3sciqa-test-llava-20-validation-augmented-unscored.jsonl](results/m3sciqa-test-llava-20-validation-augmented-unscored.jsonl). JSONL records include each question, model answer, available reference answer, modality, paper IDs, local image path, selected validation row IDs, and per-example metrics. Records are flushed as examples finish, so completed answers remain saved if a later example fails. Images stay on disk locally and are sent only to the configured local Ollama server.
+For validation runs, normalized exact match and token F1 are measured against the public reference answers. For test runs, the evaluator uses up to two BM25-selected validation examples, including their images and known Q/A, as few-shot demonstrations; the test answer is never placed in the prompt. The official M3SciQA test split has blank/hidden answer labels, so test runs are prediction-only and report metrics as `null`, not zero. Validation examples are never added to validation prompts. The `--output` files shown above are created when those commands are run; they are not currently present in this workspace. The available test inputs and retrieval/tool outputs are in [results/m3sciqa-agent-samples-test.json](results/m3sciqa-agent-samples-test.json). JSONL inference records include each question, model answer, available reference answer, modality, paper IDs, local image path, selected validation row IDs, and per-example metrics. Records are flushed as examples finish, so completed answers remain saved if a later example fails. Images stay on disk locally and are sent only to the configured local Ollama server.
 
-Measured evaluation results are recorded in [results/run-results.json](results/run-results.json). The BM25 SciFact dev baseline at k=5 reached hit rate 0.7433, recall 0.7209, and MRR 0.6257 over 300 claims. On 100 labeled M3SciQA validation examples with local `llava:latest`, normalized exact match was 0.0 and token F1 was 0.1191 (31 figure examples: 0.0838 F1; 69 table examples: 0.1349 F1). The official M3SciQA test split has no public answer labels, so its predictions cannot be assigned EM/F1; earlier test-run `0.0` scores were artifacts of treating blank references as labels and must not be interpreted as model quality. Use validation metrics for scoring and test only for saved predictions or external/hidden-label evaluation.
+Measured evaluation results are recorded in [results/run-results.json](results/run-results.json). The BM25 SciFact dev baseline at k=5 reached hit rate 0.7433, recall 0.7209, and MRR 0.6257 over 300 claims. On 100 labeled M3SciQA validation examples with local `llava:latest`, normalized exact match was 0.0 and token F1 was 0.1191 (31 figure examples: 0.0838 F1; 69 table examples: 0.1349 F1). These llava predictions are not included as files in the current workspace. The official M3SciQA test split has no public answer labels, so its predictions cannot be assigned EM/F1; earlier test-run `0.0` scores were artifacts of treating blank references as labels and must not be interpreted as model quality. Use validation metrics for scoring and test only for saved predictions or external/hidden-label evaluation.
 
 The previous text-only SciFact evidence retrieval evaluation remains available as a separate task:
 
