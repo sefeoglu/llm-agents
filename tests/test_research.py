@@ -1,9 +1,36 @@
 import json
+import pytest
 
-from llm_agents.benchmark import evaluate_m3sciqa
+from llm_agents.benchmark import (
+    _chrf,
+    _qa_text_metrics,
+    _rouge_l_f1,
+    _sentence_bleu_scores,
+    evaluate_m3sciqa,
+)
 from llm_agents.evaluation import evaluate_m3sciqa_agent
+from llm_agents.llm import LLM, OllamaToolCallingLLM, OpenAIToolCallingLLM
 from llm_agents.papers import ResearchPaper, parse_arxiv_feed, sample_papers
 from llm_agents.research import ResearchAssistant
+from llm_agents.vision import analyze_images_with_openai
+
+
+class ScriptedLLM(LLM):
+    def __init__(self, decisions):
+        self.decisions = iter(decisions)
+
+    def decide(self, question, observations, tools=None):
+        return next(self.decisions)
+
+
+class FigureToolLLM(LLM):
+    def decide(self, question, observations, tools=None):
+        return {"tool": "inspect_figures", "arguments": {"query": question}}
+
+
+class FailingLLM(LLM):
+    def decide(self, question, observations, tools=None):
+        raise ValueError("empty model response")
 
 
 def test_arxiv_feed_parser_normalizes_record():
@@ -21,7 +48,14 @@ def test_arxiv_feed_parser_normalizes_record():
 
 
 def test_agent_selects_retrieval_trend_and_calculator():
-    assistant = ResearchAssistant(sample_papers())
+    assistant = ResearchAssistant(sample_papers(), llm=ScriptedLLM([
+        {"tool": "search", "arguments": {"query": "RAG knowledge-intensive tasks"}},
+        {"answer": "[arXiv:2005.11401] Retrieval-Augmented Generation evidence"},
+        {"tool": "publication_trend", "arguments": {}},
+        {"answer": "The trend describes this corpus, not the field as a whole."},
+        {"tool": "calculator", "arguments": {"expression": "12 * (3 + 4)"}},
+        {"answer": "84"},
+    ]))
     retrieval = assistant.run("What does RAG use for knowledge-intensive tasks?")
     assert retrieval["trace"][0]["tool"] == "search"
     assert "[arXiv:2005.11401]" in retrieval["answer"]
@@ -32,6 +66,238 @@ def test_agent_selects_retrieval_trend_and_calculator():
 
     calculation = assistant.run("Compute 12 * (3 + 4)")
     assert calculation["answer"] == "84"
+
+
+def test_research_assistant_can_select_openai_agent_provider(monkeypatch):
+    selected = {}
+
+    class FakeOpenAI(LLM):
+        def __init__(self, model=None):
+            selected["model"] = model
+
+        def decide(self, question, observations, tools=None):
+            return {"answer": "test response"}
+
+    monkeypatch.setattr("llm_agents.research.OpenAIToolCallingLLM", FakeOpenAI)
+    assistant = ResearchAssistant(
+        sample_papers(), agent_provider="openai", agent_model="configured-gpt"
+    )
+
+    assert isinstance(assistant.agent.llm, FakeOpenAI)
+    assert selected["model"] == "configured-gpt"
+
+
+def test_ollama_llm_sends_tool_schemas_and_parses_tool_calls(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({"message": {"tool_calls": [{"function": {
+                "name": "search",
+                "arguments": {"query": "battery degradation"},
+            }}]}}).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("llm_agents.llm.urllib.request.urlopen", fake_urlopen)
+    tool_schema = {
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"],
+    }
+    decision = OllamaToolCallingLLM("test-model").decide(
+        "Find battery papers", [], [{
+            "name": "search",
+            "description": "Search the paper corpus",
+            "parameters": tool_schema,
+        }],
+    )
+
+    assert decision == {
+        "tool": "search", "arguments": {"query": "battery degradation"},
+    }
+    assert captured["url"] == "http://127.0.0.1:11434/api/chat"
+    assert captured["payload"]["model"] == "test-model"
+    assert captured["payload"]["tools"][0]["function"]["parameters"] == tool_schema
+    assert captured["timeout"] == 120
+
+
+def test_openai_agent_sends_tool_schemas_and_parses_function_call(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({"choices": [{"message": {"tool_calls": [{
+                "id": "call-search-1",
+                "type": "function",
+                "function": {
+                    "name": "search",
+                    "arguments": '{"query":"battery aging"}',
+                },
+            }]}}]}).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["authorization"] = request.get_header("Authorization")
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("llm_agents.llm.urllib.request.urlopen", fake_urlopen)
+    spec = {
+        "name": "search",
+        "description": "Search research papers",
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+    }
+    decision = OpenAIToolCallingLLM("gpt-4.1-mini", api_key="test-key").decide(
+        "Find battery aging evidence", [], [spec]
+    )
+
+    assert decision == {
+        "tool": "search",
+        "arguments": {"query": "battery aging"},
+        "tool_call_id": "call-search-1",
+    }
+    assert captured["url"] == "https://api.openai.com/v1/chat/completions"
+    assert captured["authorization"] == "Bearer test-key"
+    assert captured["payload"]["model"] == "gpt-4.1-mini"
+    assert captured["payload"]["tools"][0]["function"]["parameters"] == spec["parameters"]
+    assert captured["payload"]["parallel_tool_calls"] is False
+    assert captured["timeout"] == 120
+
+
+def test_openai_agent_rejects_batched_calls(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({"choices": [{"message": {"tool_calls": [
+                {"id": "call-search", "function": {
+                    "name": "search", "arguments": '{"query":"battery"}',
+                }},
+                {"id": "call-calc", "function": {
+                    "name": "calculator", "arguments": '{"expression":"2 + 2"}',
+                }},
+            ]}}]}).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr("llm_agents.llm.urllib.request.urlopen", fake_urlopen)
+    tools = [
+        {"name": "search", "description": "Search", "parameters": {"type": "object", "properties": {}}},
+        {"name": "calculator", "description": "Calculate", "parameters": {"type": "object", "properties": {}}},
+    ]
+    with pytest.raises(ValueError, match="one adaptive action"):
+        OpenAIToolCallingLLM("gpt-4.1-mini", api_key="test-key").decide(
+            "Search and calculate", [], tools
+        )
+
+    assert captured["payload"]["parallel_tool_calls"] is False
+
+
+def test_rouge_l_f1_rewards_in_order_overlap():
+    assert _rouge_l_f1("alpha beta gamma", "alpha x beta gamma") == pytest.approx(0.8571, abs=1e-4)
+    assert _rouge_l_f1("alpha beta gamma", "gamma beta alpha") == pytest.approx(1 / 3)
+    assert _rouge_l_f1("alpha", "omega") == 0.0
+    assert _rouge_l_f1("", "") == 1.0
+
+
+def test_qa_text_metrics_include_standard_overlap_and_length_scores():
+    scores = _qa_text_metrics("alpha beta gamma", "alpha beta delta")
+    assert scores["exact_match"] == 0
+    assert scores["token_precision"] == pytest.approx(2 / 3)
+    assert scores["token_recall"] == pytest.approx(2 / 3)
+    assert scores["token_f1"] == pytest.approx(2 / 3)
+    assert scores["rouge_1_f1"] == pytest.approx(scores["token_f1"])
+    assert scores["rouge_2_f1"] == 0.5
+    assert scores["rouge_l_f1"] == pytest.approx(2 / 3)
+    assert 0 <= scores["bleu_4"] <= scores["bleu_1"] <= 1
+    assert 0 <= scores["chrf"] <= 1
+    assert scores["prediction_token_count"] == 3
+    assert scores["reference_token_count"] == 3
+    assert scores["answer_length_ratio"] == 1.0
+    assert _chrf("same words", "same words") == 1.0
+    assert set(_sentence_bleu_scores([], ["empty"])) == {
+        "bleu_1", "bleu_2", "bleu_3", "bleu_4",
+    }
+
+
+def test_openai_vision_adapter_sends_local_image_and_parses_response(tmp_path, monkeypatch):
+    image_path = tmp_path / "sample.png"
+    image_path.write_bytes(b"png-bytes")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({"choices": [{"message": {
+                "content": "The chart shows an upward trend."
+            }}]}).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["authorization"] = request.get_header("Authorization")
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("llm_agents.vision.urllib.request.urlopen", fake_urlopen)
+    answer = analyze_images_with_openai([str(image_path)], "Read the chart", "gpt-4o-mini")
+
+    assert answer == "The chart shows an upward trend."
+    assert captured["url"] == "https://api.openai.com/v1/chat/completions"
+    assert captured["authorization"] == "Bearer test-key"
+    assert captured["payload"]["model"] == "gpt-4o-mini"
+    assert captured["payload"]["messages"][0]["content"][0] == {
+        "type": "text", "text": "Read the chart",
+    }
+    assert captured["payload"]["messages"][0]["content"][1]["image_url"]["url"].startswith(
+        "data:image/png;base64,"
+    )
+    assert captured["timeout"] == 120
+
+
+def test_openai_vision_adapter_requires_api_key(tmp_path, monkeypatch):
+    image_path = tmp_path / "sample.png"
+    image_path.write_bytes(b"png-bytes")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        analyze_images_with_openai([str(image_path)], "Read the chart", "gpt-4o-mini")
 
 
 def test_trend_tool_reports_small_corpus_scope():
@@ -90,6 +356,80 @@ def test_m3sciqa_evaluation_uses_local_image_and_answer(tmp_path):
     assert saved["reference_answer"] == "The blue curve is higher."
     assert saved["image_path"] == "images/validation/00000.png"
     assert saved["token_f1"] == 1.0
+    assert saved["rouge_l_f1"] == 1.0
+    assert metrics["rouge_l_f1"] == 1.0
+    assert metrics["by_modality"]["figure"]["rouge_l_f1"] == 1.0
+
+
+def test_m3sciqa_evaluation_supports_openai_provider(tmp_path, monkeypatch):
+    image_path = tmp_path / "images" / "validation" / "00000.png"
+    image_path.parent.mkdir(parents=True)
+    image_path.write_bytes(b"image-bytes")
+    row = {
+        "row_id": 0,
+        "question": "What trend is shown?",
+        "answer": "An upward trend.",
+        "figure": {"path": "images/validation/00000.png"},
+        "modal": "figure",
+    }
+    (tmp_path / "validation.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
+    observed = {}
+    monkeypatch.delenv("OPENAI_VISION_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    metrics = evaluate_m3sciqa(
+        str(tmp_path), None, limit=1, vision_provider="openai",
+        answer_fn=lambda images, prompt, model: (
+            observed.update(images=images, prompt=prompt, model=model)
+            or "An upward trend."
+        ),
+        output_path=str(tmp_path / "predictions.jsonl"),
+    )
+
+    saved = json.loads((tmp_path / "predictions.jsonl").read_text(encoding="utf-8"))
+    assert observed["model"] == "gpt-4o-mini"
+    assert metrics["vision_provider"] == "openai"
+    assert metrics["vision_model"] == "gpt-4o-mini"
+    assert saved["vision_provider"] == "openai"
+
+
+def test_m3sciqa_qa_rag_includes_retrieved_evidence_not_reference_answer(tmp_path):
+    image_path = tmp_path / "images" / "validation" / "00000.png"
+    image_path.parent.mkdir(parents=True)
+    image_path.write_bytes(b"image-bytes")
+    row = {
+        "row_id": 0,
+        "question": "How does elevated temperature affect cell capacity?",
+        "answer": "SECRET GOLD ANSWER",
+        "evidence_reference": "Elevated temperature accelerates cell capacity fade during cycling.",
+        "reference_arxiv_id": "1234.56789",
+        "figure": {"path": "images/validation/00000.png"},
+        "modal": "figure",
+    }
+    (tmp_path / "validation.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
+    observed = {}
+
+    def fake_answer(images, prompt, model):
+        observed.update(images=images, prompt=prompt, model=model)
+        return "Elevated temperature accelerates capacity fade."
+
+    output_path = tmp_path / "predictions.jsonl"
+    metrics = evaluate_m3sciqa(
+        str(tmp_path), "fake-model", limit=1, answer_fn=fake_answer,
+        output_path=str(output_path), rag_top_k=2,
+    )
+
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "Elevated temperature accelerates cell capacity fade during cycling." in observed["prompt"]
+    assert "[arXiv:1234.56789]" in observed["prompt"]
+    assert "SECRET GOLD ANSWER" not in observed["prompt"]
+    assert saved["retrieved_evidence"][0]["paper_id"] == "1234.56789"
+    assert metrics["rag"] == {
+        "enabled": True,
+        "top_k": 2,
+        "corpus": "split evidence_reference passages grouped by reference_arxiv_id",
+        "unique_papers": 1,
+    }
 
 
 def test_m3sciqa_evaluator_uses_local_vision_model_environment(tmp_path, monkeypatch):
@@ -210,11 +550,11 @@ def test_unlabeled_m3sciqa_test_rows_are_not_scored(tmp_path):
     assert metrics["exact_match"] is None
     assert metrics["token_f1"] is None
     assert "no public answer labels" in metrics["scoring_note"]
-    assert metrics["by_modality"]["figure"] == {
-        "examples": 1,
-        "labeled_examples": 0,
-        "token_f1": None,
-    }
+    figure_metrics = metrics["by_modality"]["figure"]
+    assert figure_metrics["examples"] == 1
+    assert figure_metrics["labeled_examples"] == 0
+    assert all(value is None for key, value in figure_metrics.items()
+               if key not in {"examples", "labeled_examples"})
     assert saved["reference_answer"] is None
     assert saved["exact_match"] is None
     assert saved["token_f1"] is None
@@ -247,7 +587,8 @@ def test_m3sciqa_agent_metrics_cover_retrieval_citations_and_tools(tmp_path):
 
     samples_path = tmp_path / "results" / "samples.json"
     metrics = evaluate_m3sciqa_agent(
-        str(tmp_path), top_k=5, samples_output_path=str(samples_path)
+        str(tmp_path), top_k=5, samples_output_path=str(samples_path),
+        llm=FigureToolLLM(),
     )
 
     assert metrics["examples_considered"] == 2
@@ -276,9 +617,29 @@ def test_m3sciqa_agent_eval_allows_test_annotations_without_answer_labels(tmp_pa
     }
     (tmp_path / "test.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
 
-    metrics = evaluate_m3sciqa_agent(str(tmp_path), split="test")
+    metrics = evaluate_m3sciqa_agent(
+        str(tmp_path), split="test", llm=FigureToolLLM()
+    )
 
     assert metrics["split"] == "test"
     assert metrics["retrieval_examples"] == 1
     assert metrics["recall_at_k"] == 1.0
     assert metrics["tool_selection_examples"] == 1
+
+
+def test_m3sciqa_agent_eval_counts_model_errors_as_incorrect_tool_choices(tmp_path):
+    row = {
+        "question": "What does the figure show?",
+        "evidence_reference": "A rising trend is shown.",
+        "reference_arxiv_id": "1111.00001",
+        "modal": "figure",
+    }
+    (tmp_path / "validation.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    metrics = evaluate_m3sciqa_agent(
+        str(tmp_path), llm=FailingLLM()
+    )
+
+    assert metrics["tool_selection_examples"] == 1
+    assert metrics["tool_selection_errors"] == 1
+    assert metrics["tool_selection_accuracy"] == 0.0

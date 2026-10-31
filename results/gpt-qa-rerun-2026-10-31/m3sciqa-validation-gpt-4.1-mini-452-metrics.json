@@ -1,0 +1,25 @@
+{
+  "dataset": "M3SciQA",
+  "split": "validation",
+  "vision_provider": "openai",
+  "examples_evaluated": 452,
+  "labeled_examples": 452,
+  "vision_model": "gpt-4.1-mini",
+  "exact_match": 0.0,
+  "token_f1": 0.1503,
+  "image_examples": 452,
+  "by_modality": {
+    "figure": {
+      "examples": 142,
+      "labeled_examples": 142,
+      "token_f1": 0.1517
+    },
+    "table": {
+      "examples": 310,
+      "labeled_examples": 310,
+      "token_f1": 0.1496
+    }
+  },
+  "scoring_note": null,
+  "predictions_file": "/Users/sefika/projects/llm-agents/results/gpt-qa-rerun-2026-10-31/m3sciqa-validation-gpt-4.1-mini-452.jsonl"
+}

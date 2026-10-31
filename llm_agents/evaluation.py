@@ -1,11 +1,13 @@
 """Evaluation metrics for retrieval, citations, and tool selection on M3SciQA."""
 import json
+import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from .research import ResearchLLM
+from .llm import LLM, OllamaToolCallingLLM, OpenAIToolCallingLLM
 from .reranker import Reranker
+from .research import ResearchAssistant
 
 
 def _read_jsonl(path: Path) -> List[dict]:
@@ -15,7 +17,10 @@ def _read_jsonl(path: Path) -> List[dict]:
 
 def evaluate_m3sciqa_agent(data_dir: str, split: str = "validation",
                            top_k: int = 5, limit: int = 0,
-                           samples_output_path: str = "") -> dict:
+                           samples_output_path: str = "",
+                           llm: Optional[LLM] = None,
+                           model: Optional[str] = None,
+                           provider: str = "ollama") -> dict:
     """Measure retrieval/citation/tool routing against M3SciQA annotations.
 
     Retrieval candidates are built only from the public ``evidence_reference``
@@ -46,7 +51,17 @@ def evaluate_m3sciqa_agent(data_dir: str, split: str = "validation",
     ]
     paper_ids = [document.split("]", 1)[0].removeprefix("[arXiv:") for document in documents]
     reranker = Reranker()
-    router = ResearchLLM()
+    if llm:
+        router = llm
+    elif provider == "openai":
+        router = OpenAIToolCallingLLM(model=model)
+    elif provider == "ollama":
+        router = OllamaToolCallingLLM(
+            model or os.environ.get("OLLAMA_AGENT_MODEL", "qwen2.5:3b")
+        )
+    else:
+        raise ValueError("provider must be 'ollama' or 'openai'")
+    tool_specs = ResearchAssistant([], llm=router).agent.tools.describe()
 
     retrieval_recalls = []
     reciprocal_ranks = []
@@ -54,6 +69,7 @@ def evaluate_m3sciqa_agent(data_dir: str, split: str = "validation",
     citations_total = 0
     tool_correct = 0
     tool_total = 0
+    tool_selection_errors = 0
     eligible_retrieval = 0
     sample_results = []
 
@@ -94,9 +110,15 @@ def evaluate_m3sciqa_agent(data_dir: str, split: str = "validation",
         modality = str(row.get("modal") or "").lower()
         selected_tool = "answer"
         expected_tool = "inspect_figures" if modality in {"figure", "table"} else None
+        tool_selection_error = None
         if modality in {"figure", "table"}:
-            decision = router.decide(question, [])
-            selected_tool = decision.get("tool", "answer")
+            try:
+                decision = router.decide(question, [], tool_specs)
+                selected_tool = decision.get("tool", "answer")
+            except Exception as error:
+                selected_tool = "error"
+                tool_selection_error = f"{type(error).__name__}: {error}"
+                tool_selection_errors += 1
             tool_correct += selected_tool == expected_tool
             tool_total += 1
 
@@ -118,6 +140,7 @@ def evaluate_m3sciqa_agent(data_dir: str, split: str = "validation",
                 "top_citation_matches_reference": citation_match,
                 "selected_tool": selected_tool,
                 "expected_tool": expected_tool,
+                "tool_selection_error": tool_selection_error,
             },
         })
 
@@ -130,6 +153,8 @@ def evaluate_m3sciqa_agent(data_dir: str, split: str = "validation",
                 "dataset": "M3SciQA",
                 "split": split,
                 "top_k": top_k,
+                "tool_selection_provider": provider if llm is None else "injected",
+                "tool_selection_model": getattr(router, "model", "injected evaluator"),
                 "sample_count": len(sample_results),
                 "note": "Answers are omitted; test answer labels are hidden.",
                 "samples": sample_results,
@@ -140,6 +165,8 @@ def evaluate_m3sciqa_agent(data_dir: str, split: str = "validation",
     return {
         "dataset": "M3SciQA",
         "split": split,
+        "tool_selection_provider": provider if llm is None else "injected",
+        "tool_selection_model": getattr(router, "model", "injected evaluator"),
         "examples_considered": len(rows),
         "retrieval_examples": eligible_retrieval,
         "retrieval_k": top_k,
@@ -151,15 +178,16 @@ def evaluate_m3sciqa_agent(data_dir: str, split: str = "validation",
         if citations_total else None,
         "citations_evaluated": citations_total,
         "tool_selection_examples": tool_total,
+        "tool_selection_errors": tool_selection_errors,
         "tool_selection_accuracy": round(tool_correct / tool_total, 4)
         if tool_total else None,
         "citation_metric_note": (
-            "The baseline cites its top-ranked passage. Correctness is a paper-ID "
-            "match against reference_arxiv_id; it does not establish semantic entailment."
+            "Correctness is a paper-ID match against reference_arxiv_id; it does "
+            "not establish semantic entailment."
         ),
         "tool_selection_note": (
             "Expected tool is inspect_figures for every row whose M3SciQA modality is "
-            "figure or table; accuracy measures the router's first tool decision."
+            "figure or table; accuracy measures the configured LLM's first tool decision."
         ),
         "retrieval_corpus_note": (
             "Candidate text uses only public evidence_reference annotations grouped "

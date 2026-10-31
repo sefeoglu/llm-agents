@@ -1,11 +1,10 @@
 """Research assistant with adaptive retrieval and corpus analysis tools."""
-import re
 import os
 from collections import Counter
 from pathlib import Path
 from typing import Callable, List, Optional
 
-from .llm import RuleBasedLLM
+from .llm import LLM, OllamaToolCallingLLM, OpenAIToolCallingLLM
 from .orchestrator import Agent
 from .papers import ResearchPaper
 from .reranker import Reranker, tokenize
@@ -13,36 +12,13 @@ from .tools import Tool, default_registry
 from .vision import analyze_image_with_ollama
 
 
-class ResearchLLM(RuleBasedLLM):
-    """Choose analysis when requested; otherwise use retrieval or calculation."""
-
-    def decide(self, question: str, observations: List[dict]) -> dict:
-        used = {observation["tool"] for observation in observations}
-        asks_for_visual = re.search(
-            r"\b(fig(?:ure)?s?|chart|plot|diagram|graph|table|image|visual)\b\.?",
-            question,
-            re.I,
-        )
-        if asks_for_visual and "inspect_figures" not in used:
-            return {"tool": "inspect_figures", "arguments": {"query": question}}
-        if observations and observations[-1]["tool"] == "inspect_figures":
-            return {"answer": observations[-1]["result"]["summary"]}
-        asks_for_trend = re.search(
-            r"\b(trend|over time|by year|annual|growth|changed over time)\b",
-            question,
-            re.I,
-        )
-        if asks_for_trend and "publication_trend" not in used:
-            return {"tool": "publication_trend", "arguments": {}}
-        if observations and observations[-1]["tool"] == "publication_trend":
-            return {"answer": observations[-1]["result"]["summary"]}
-        return super().decide(question, observations)
-
-
 class ResearchAssistant:
     def __init__(self, papers: List[ResearchPaper], top_k: int = 3,
                  vision_model: Optional[str] = None,
-                 vision_analyzer: Optional[Callable[[str, str, str], str]] = None):
+                 vision_analyzer: Optional[Callable[[str, str, str], str]] = None,
+                 llm: Optional[LLM] = None,
+                 agent_model: Optional[str] = None,
+                 agent_provider: str = "ollama"):
         self.papers = papers
         self.documents = [paper.indexed_text() for paper in papers]
         self.reranker = Reranker()
@@ -53,13 +29,32 @@ class ResearchAssistant:
             "publication_trend",
             "Count papers by year and estimate the linear trend in annual counts",
             self.publication_trend,
+            {"type": "object", "properties": {}, "required": []},
         ))
         registry.register(Tool(
             "inspect_figures",
             "Retrieve paper figures and inspect them with an optional vision model",
             self.inspect_figures,
+            {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                    "top_k": {"type": "integer"},
+                },
+                "required": ["query"],
+            },
         ))
-        self.agent = Agent(ResearchLLM(), registry, self.reranker, top_k=top_k)
+        if llm:
+            agent_llm = llm
+        elif agent_provider == "openai":
+            agent_llm = OpenAIToolCallingLLM(model=agent_model)
+        elif agent_provider == "ollama":
+            agent_llm = OllamaToolCallingLLM(
+                agent_model or os.environ.get("OLLAMA_AGENT_MODEL", "qwen2.5:3b")
+            )
+        else:
+            raise ValueError("agent_provider must be 'ollama' or 'openai'")
+        self.agent = Agent(agent_llm, registry, self.reranker, top_k=top_k)
 
     def _retrieve(self, query: str) -> List[str]:
         query_terms = set(tokenize(query))
@@ -67,7 +62,7 @@ class ResearchAssistant:
             document for document in self.documents
             if query_terms.intersection(tokenize(document))
         ]
-        return matches or self.documents
+        return matches
 
     def publication_trend(self) -> dict:
         yearly_counts = Counter(paper.year for paper in self.papers if paper.year)

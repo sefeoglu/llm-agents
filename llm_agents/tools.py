@@ -1,7 +1,7 @@
 """Tool definitions and a registry supporting tool calling."""
 import ast
 import operator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List
 
 
@@ -10,6 +10,9 @@ class Tool:
     name: str
     description: str
     func: Callable[..., Any]
+    parameters: dict = field(default_factory=lambda: {
+        "type": "object", "properties": {}, "required": [],
+    })
 
     def __call__(self, **kwargs):
         return self.func(**kwargs)
@@ -26,7 +29,11 @@ class ToolRegistry:
         return list(self._tools)
 
     def describe(self) -> List[dict]:
-        return [{"name": t.name, "description": t.description} for t in self._tools.values()]
+        return [{
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": tool.parameters,
+        } for tool in self._tools.values()]
 
     def call(self, name: str, arguments: dict) -> Any:
         if name not in self._tools:
@@ -53,7 +60,18 @@ def calculator(expression: str) -> float:
 
 def default_registry(search_fn: Callable[[str], List[str]]) -> ToolRegistry:
     reg = ToolRegistry()
-    reg.register(Tool("calculator", "Evaluate an arithmetic expression", calculator))
+    reg.register(Tool(
+        "calculator", "Evaluate an arithmetic expression", calculator,
+        {
+            "type": "object",
+            "properties": {"expression": {"type": "string"}},
+            "required": ["expression"],
+        },
+    ))
     reg.register(Tool("search", "Retrieve documents relevant to a query",
-                      lambda query: search_fn(query)))
+                      lambda query: search_fn(query), {
+                          "type": "object",
+                          "properties": {"query": {"type": "string"}},
+                          "required": ["query"],
+                      }))
     return reg

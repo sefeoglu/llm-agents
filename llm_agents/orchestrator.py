@@ -7,7 +7,7 @@ from .tools import ToolRegistry, default_registry
 
 
 class Agent:
-    """Loop: LLM decides -> tool call -> observation -> ... -> answer."""
+    """Loop: decide one action, observe its result, then re-plan."""
 
     def __init__(self, llm: LLM, tools: ToolRegistry, reranker: Reranker,
                  max_steps: int = 5, top_k: int = 3):
@@ -16,29 +16,64 @@ class Agent:
 
     def run(self, question: str) -> dict:
         obs: List[dict] = []
-        for _ in range(self.max_steps):
-            d = self.llm.decide(question, obs)
+        tool_calls_used = 0
+        while True:
+            d = self.llm.decide(question, obs, self.tools.describe())
             if "answer" in d:
                 return {"answer": d["answer"], "trace": obs}
-            result = self.tools.call(d["tool"], d["arguments"])
-            if d["tool"] == "search":
-                result = self.reranker.rerank(d["arguments"]["query"], result, self.top_k)
-            obs.append({"tool": d["tool"], "arguments": d["arguments"], "result": result})
-        return {"answer": "Max steps reached.", "trace": obs}
+            calls = d.get("tool_calls")
+            if calls is None:
+                calls = [{
+                    "tool": d.get("tool"),
+                    "arguments": d.get("arguments", {}),
+                    "tool_call_id": d.get("tool_call_id"),
+                }]
+            if not isinstance(calls, list) or not calls:
+                raise ValueError("LLM returned an invalid or empty tool-call list")
+            if len(calls) != 1:
+                raise ValueError(
+                    "LLM must choose one tool per decision so it can re-plan "
+                    "after observing each result"
+                )
+            if tool_calls_used >= self.max_steps:
+                return {"answer": "Max steps reached.", "trace": obs}
+            call = calls[0]
+            name = call.get("tool")
+            if name not in self.tools.names():
+                raise ValueError(f"LLM selected an unavailable tool: {name}")
+            arguments = call.get("arguments", {})
+            if not isinstance(arguments, dict):
+                raise ValueError(f"LLM returned invalid arguments for tool {name}")
+            result = self.tools.call(name, arguments)
+            if name == "search":
+                result = self.reranker.rerank(
+                    arguments["query"], result, self.top_k
+                )
+            observation = {
+                "tool": name, "arguments": arguments, "result": result,
+            }
+            if call.get("tool_call_id"):
+                observation["tool_call_id"] = call["tool_call_id"]
+            obs.append(observation)
+            tool_calls_used += 1
 
 
-class Orchestrator:
-    """Builds an agent over a document corpus (candidate retrieval + reranking)."""
+class Orchestrator(Agent):
+    """Adaptively choose tools over a corpus, observing each result before replanning."""
 
-    def __init__(self, llm: LLM, corpus: List[str], reranker: Optional[Reranker] = None):
+    def __init__(self, llm: LLM, corpus: List[str], reranker: Optional[Reranker] = None,
+                 max_steps: int = 5, top_k: int = 3):
         self.corpus = corpus
-        self.agent = Agent(llm, default_registry(self._retrieve), reranker or Reranker())
+        super().__init__(
+            llm,
+            default_registry(self._retrieve),
+            reranker or Reranker(),
+            max_steps=max_steps,
+            top_k=top_k,
+        )
 
     def _retrieve(self, query: str) -> List[str]:
         # First stage: keep any doc sharing a token with the query; reranker orders them.
         from .reranker import tokenize
         q = set(tokenize(query))
         return [d for d in self.corpus if q & set(tokenize(d))]
-
-    def run(self, question: str) -> dict:
-        return self.agent.run(question)

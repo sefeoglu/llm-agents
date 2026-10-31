@@ -1,0 +1,410 @@
+{
+  "dataset": "M3SciQA",
+  "split": "validation",
+  "top_k": 5,
+  "tool_selection_model": "qwen2.5:3b",
+  "sample_count": 10,
+  "note": "Answers are omitted; test answer labels are hidden.",
+  "samples": [
+    {
+      "row_id": 0,
+      "input": {
+        "question": "Consider the paper that introduces the method that achieves a score of 28.62 in the WQ-B task. How does the model proposed in the paper address the challenge of generating questions with both word-level and structure-level diversity?",
+        "modality": "table",
+        "image_path": "images/validation/00000.png",
+        "reference_paper_id": "2309.14362",
+        "evidence_reference": "In our approach, we introduce external natural questions to diversify question generation, which can generate questions with different expressions, since these natural questions cover a wider range of semantic patterns and expressions."
+      },
+      "output": {
+        "retrieved_papers": [
+          {
+            "paper_id": "2109.10616",
+            "score": 10.892427
+          },
+          {
+            "paper_id": "2210.07032",
+            "score": 10.737109
+          },
+          {
+            "paper_id": "2009.06367",
+            "score": 8.569476
+          },
+          {
+            "paper_id": "2105.06453",
+            "score": 8.408609
+          },
+          {
+            "paper_id": "2309.14362",
+            "score": 7.69087
+          }
+        ],
+        "gold_rank": 5,
+        "recall_hit_at_k": true,
+        "reciprocal_rank": 0.2,
+        "top_citation_matches_reference": false,
+        "selected_tool": "search",
+        "expected_tool": "inspect_figures"
+      }
+    },
+    {
+      "row_id": 1,
+      "input": {
+        "question": "Consider the paper that introduces the method in the table that corresponds to a ROUGE L score equal to 41.39. How does the application of normalizing flow in the model proposed in the paper specifically contribute to the improvement of abstractive text summarization performance?",
+        "modality": "table",
+        "image_path": "images/validation/00001.png",
+        "reference_paper_id": "2109.10616",
+        "evidence_reference": "To this end, we propose a method to adapt normalizing flow in the neural topic model to have a better approximation of true distribution and integrate it into the summarization model. Integrating flow mechanism to better approximate the true posterior has been proven to improve performance for variational inference \\cite{rezende2015variational} as well as for downstream tasks such as image synthesis \\cite{kingma2016improved}, etc."
+      },
+      "output": {
+        "retrieved_papers": [
+          {
+            "paper_id": "2109.10616",
+            "score": 23.016147
+          },
+          {
+            "paper_id": "2210.07032",
+            "score": 15.234916
+          },
+          {
+            "paper_id": "2009.06367",
+            "score": 11.28896
+          },
+          {
+            "paper_id": "2105.06453",
+            "score": 6.054055
+          },
+          {
+            "paper_id": "2210.11151",
+            "score": 5.990734
+          }
+        ],
+        "gold_rank": 1,
+        "recall_hit_at_k": true,
+        "reciprocal_rank": 1.0,
+        "top_citation_matches_reference": true,
+        "selected_tool": "search",
+        "expected_tool": "inspect_figures"
+      }
+    },
+    {
+      "row_id": 2,
+      "input": {
+        "question": "Consider the paper that introduces the method that results in a better score than MOCA but worse score than LACMA in the Seen, Val, SR dataset. What specific performance improvement does the model proposed in the paper provide through pretraining and joint training with synthetic instructions on the ALFRED benchmark's unseen test split?",
+        "modality": "table",
+        "image_path": "images/validation/00002.png",
+        "reference_paper_id": "2105.06453",
+        "evidence_reference": "Our approach sets a new state of the art on the challenging ALFRED benchmark, achieving 38.4% and 8.5% task success rates on seen and unseen test splits."
+      },
+      "output": {
+        "retrieved_papers": [
+          {
+            "paper_id": "2105.06453",
+            "score": 17.975134
+          },
+          {
+            "paper_id": "2210.07032",
+            "score": 16.600218
+          },
+          {
+            "paper_id": "2109.10616",
+            "score": 13.589442
+          },
+          {
+            "paper_id": "2305.10688",
+            "score": 8.139972
+          },
+          {
+            "paper_id": "2210.11151",
+            "score": 7.788655
+          }
+        ],
+        "gold_rank": 1,
+        "recall_hit_at_k": true,
+        "reciprocal_rank": 1.0,
+        "top_citation_matches_reference": true,
+        "selected_tool": "search",
+        "expected_tool": "inspect_figures"
+      }
+    },
+    {
+      "row_id": 3,
+      "input": {
+        "question": "Consider the paper that introduces the method that is in the second row of the table. What is the recall value for the model proposed in the paper using BERT-large (Bl) as the language model encoder in the UFET task before applying the Prior Knowledge about Labels (PKL) strategy?",
+        "modality": "table",
+        "image_path": "images/validation/00003.png",
+        "reference_paper_id": "2305.12802",
+        "evidence_reference": "DenoiseFET & Bl & 52.6 & 47.5 & 49.8"
+      },
+      "output": {
+        "retrieved_papers": [
+          {
+            "paper_id": "2210.07032",
+            "score": 21.825036
+          },
+          {
+            "paper_id": "2109.10616",
+            "score": 19.754546
+          },
+          {
+            "paper_id": "2009.06367",
+            "score": 13.294744
+          },
+          {
+            "paper_id": "2105.06453",
+            "score": 9.181435
+          },
+          {
+            "paper_id": "2210.11151",
+            "score": 6.86655
+          }
+        ],
+        "gold_rank": null,
+        "recall_hit_at_k": false,
+        "reciprocal_rank": 0.0,
+        "top_citation_matches_reference": false,
+        "selected_tool": "search",
+        "expected_tool": "inspect_figures"
+      }
+    },
+    {
+      "row_id": 4,
+      "input": {
+        "question": "Consider the paper that introduces the dataset that contains 3,747,569 instances. What is the average number of aspects per article in the model proposed in the paper, and what percentage of articles have less than 9 aspects?",
+        "modality": "table",
+        "image_path": "images/validation/00004.png",
+        "reference_paper_id": "2212.09233",
+        "evidence_reference": "In \\cref{tab:big_table}, we compare \\textbf{\\DATANAME} with other query/aspect-based summarization datasets. \\textbf{\\DATANAME} contains a significantly larger amount of aspect types. On average, there are 1.82 aspects per article and 99% articles have less than 9 aspects per single document."
+      },
+      "output": {
+        "retrieved_papers": [
+          {
+            "paper_id": "2212.09233",
+            "score": 22.924688
+          },
+          {
+            "paper_id": "2210.07032",
+            "score": 13.811273
+          },
+          {
+            "paper_id": "2109.10616",
+            "score": 10.295112
+          },
+          {
+            "paper_id": "2009.06367",
+            "score": 9.229031
+          },
+          {
+            "paper_id": "2105.06453",
+            "score": 5.173115
+          }
+        ],
+        "gold_rank": 1,
+        "recall_hit_at_k": true,
+        "reciprocal_rank": 1.0,
+        "top_citation_matches_reference": true,
+        "selected_tool": "search",
+        "expected_tool": "inspect_figures"
+      }
+    },
+    {
+      "row_id": 5,
+      "input": {
+        "question": "Consider the paper that introduces the model that performs the best on the BBBP dataset. What specific finetuning strategy did the authors find to yield slightly better results for MoleculeNet tasks, and how is it characterized?",
+        "modality": "table",
+        "image_path": "images/validation/00005.png",
+        "reference_paper_id": "2305.10688",
+        "evidence_reference": "According to our exploration, Eqn.(\\ref{eq:finetune_label_only}) achieves slightly better results and we use it for all tasks (see Appendix \\ref{sec:moleculenet_detailed_result} for the results)."
+      },
+      "output": {
+        "retrieved_papers": [
+          {
+            "paper_id": "2305.10688",
+            "score": 15.261864
+          },
+          {
+            "paper_id": "2109.10616",
+            "score": 12.790062
+          },
+          {
+            "paper_id": "2210.07032",
+            "score": 11.19347
+          },
+          {
+            "paper_id": "2009.06367",
+            "score": 7.29172
+          },
+          {
+            "paper_id": "2105.06453",
+            "score": 6.346218
+          }
+        ],
+        "gold_rank": 1,
+        "recall_hit_at_k": true,
+        "reciprocal_rank": 1.0,
+        "top_citation_matches_reference": true,
+        "selected_tool": "search",
+        "expected_tool": "inspect_figures"
+      }
+    },
+    {
+      "row_id": 6,
+      "input": {
+        "question": "Consider the paper that introduces the method in the table that corresponds to the highest ROUGE 2 score. What specific performance improvement, in terms of ROUGE-1 score, does the integration of normalizing flow into the PEGASUS+NTM model achieve over using a VAE-based neural topic model without gating on the XSum test set?",
+        "modality": "table",
+        "image_path": "images/validation/00006.png",
+        "reference_paper_id": "2109.10616",
+        "evidence_reference": "without the normalizing flow, the improvement that the latent vector brings is downgraded, nearly 0.4 of ROUGE-1 for using contextualized gating and 0.53 of ROUGE-1 in non-gating case."
+      },
+      "output": {
+        "retrieved_papers": [
+          {
+            "paper_id": "2109.10616",
+            "score": 32.03689
+          },
+          {
+            "paper_id": "2210.07032",
+            "score": 14.984597
+          },
+          {
+            "paper_id": "2105.06453",
+            "score": 10.278469
+          },
+          {
+            "paper_id": "2009.06367",
+            "score": 9.799822
+          },
+          {
+            "paper_id": "2212.09233",
+            "score": 6.311464
+          }
+        ],
+        "gold_rank": 1,
+        "recall_hit_at_k": true,
+        "reciprocal_rank": 1.0,
+        "top_citation_matches_reference": true,
+        "selected_tool": "search",
+        "expected_tool": "inspect_figures"
+      }
+    },
+    {
+      "row_id": 7,
+      "input": {
+        "question": "Consider the paper that introduces the method that corresponds to a higher F1 score than that of LDSGM but a lower F1 score than 65.76 for PDTB-Top. What is the main reason the model proposed in the paper performs worse on all four top-level senses of the PDTB, especially on the Temporal sense?",
+        "modality": "table",
+        "image_path": "images/validation/00007.png",
+        "reference_paper_id": "2210.07032",
+        "evidence_reference": "We think that the main reason of poor performance is that connective prediction is closer to the natural language patterns when the model is in pre-training stage than direct implicit discourse relation prediction."
+      },
+      "output": {
+        "retrieved_papers": [
+          {
+            "paper_id": "2210.07032",
+            "score": 22.398574
+          },
+          {
+            "paper_id": "2109.10616",
+            "score": 14.68845
+          },
+          {
+            "paper_id": "2009.06367",
+            "score": 12.168077
+          },
+          {
+            "paper_id": "2105.06453",
+            "score": 10.782649
+          },
+          {
+            "paper_id": "2305.10688",
+            "score": 7.885724
+          }
+        ],
+        "gold_rank": 1,
+        "recall_hit_at_k": true,
+        "reciprocal_rank": 1.0,
+        "top_citation_matches_reference": true,
+        "selected_tool": "search",
+        "expected_tool": "inspect_figures"
+      }
+    },
+    {
+      "row_id": 8,
+      "input": {
+        "question": "Consider the paper that introduces the method which has a perplexity of 60. What is the minimum number of tokens in the set \\(\\gV_m\\) that maintains at least \\(\\rho\\) in cumulative probability mass in \\(P_w(x_t|x_{<t},c)\\) during the model's-guided generation?",
+        "modality": "figure",
+        "image_path": "images/validation/00008.png",
+        "reference_paper_id": "2009.06367",
+        "evidence_reference": "We define \\(\\gV_m\\) as \\(\\gV_n\\) for \\(n=m\\), meaning that \\(\\gV_m\\) will contain the minimum number of tokens possible at the head of the distribution for \\(P_{\\theta}(c|x_t,x_{<t})\\) to maintain a minimum cumulative probability of \\(\\rho\\) in \\(P_w(x_t|x_{<t},c)\\)."
+      },
+      "output": {
+        "retrieved_papers": [
+          {
+            "paper_id": "2009.06367",
+            "score": 35.695717
+          },
+          {
+            "paper_id": "2210.07032",
+            "score": 12.815353
+          },
+          {
+            "paper_id": "2109.10616",
+            "score": 12.005172
+          },
+          {
+            "paper_id": "2309.14362",
+            "score": 6.805688
+          },
+          {
+            "paper_id": "2210.11151",
+            "score": 4.934342
+          }
+        ],
+        "gold_rank": 1,
+        "recall_hit_at_k": true,
+        "reciprocal_rank": 1.0,
+        "top_citation_matches_reference": true,
+        "selected_tool": "answer",
+        "expected_tool": "inspect_figures"
+      }
+    },
+    {
+      "row_id": 9,
+      "input": {
+        "question": "Consider the paper that introduces the transformer-based method that achieves the highest MRR score on the FB15kET dataset. What specific aspect of the model proposed in the paper allows for the differentiated integration of neighbor content while preserving the graph structure?",
+        "modality": "table",
+        "image_path": "images/validation/00009.png",
+        "reference_paper_id": "2210.11151",
+        "evidence_reference": "a context transformer integrating neighbours content in a differentiated way through information exchange between neighbour pairs, while preserving the graph structure."
+      },
+      "output": {
+        "retrieved_papers": [
+          {
+            "paper_id": "2210.11151",
+            "score": 21.036584
+          },
+          {
+            "paper_id": "2109.10616",
+            "score": 12.168957
+          },
+          {
+            "paper_id": "2210.07032",
+            "score": 11.757165
+          },
+          {
+            "paper_id": "2009.06367",
+            "score": 10.553683
+          },
+          {
+            "paper_id": "2105.06453",
+            "score": 8.364295
+          }
+        ],
+        "gold_rank": 1,
+        "recall_hit_at_k": true,
+        "reciprocal_rank": 1.0,
+        "top_citation_matches_reference": true,
+        "selected_tool": "search",
+        "expected_tool": "inspect_figures"
+      }
+    }
+  ]
+}

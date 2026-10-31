@@ -35,6 +35,15 @@ def main() -> None:
     ask = commands.add_parser("ask", help="Ask a question over a paper corpus")
     ask.add_argument("--corpus", default="data/arxiv_papers.jsonl")
     ask.add_argument("--question", required=True)
+    ask.add_argument(
+        "--agent-provider", choices=("ollama", "openai"),
+        default=os.environ.get("AGENT_PROVIDER", "ollama"),
+        help="LLM provider for agent tool calling (default: ollama)",
+    )
+    ask.add_argument(
+        "--agent-model",
+        help="Model override; Ollama defaults to qwen2.5:3b, OpenAI to config/gpt.json",
+    )
     ask.add_argument("--vision-model", help="Ollama vision model name; defaults to OLLAMA_VISION_MODEL")
 
     ingest = commands.add_parser("ingest-pdf", help="Index PDF text and extract visual assets")
@@ -54,11 +63,17 @@ def main() -> None:
     benchmark.add_argument("--data-dir")
     benchmark.add_argument("--download", action="store_true")
     benchmark.add_argument("--split", choices=("validation", "test"), default="validation")
-    benchmark.add_argument("--vision-model",
-                           default=os.environ.get("OLLAMA_VISION_MODEL"),
-                           help="Ollama vision model; defaults to OLLAMA_VISION_MODEL")
+    benchmark.add_argument("--vision-provider", choices=("ollama", "openai"),
+                           default=os.environ.get("M3SCIQA_VISION_PROVIDER", "ollama"),
+                           help="Vision API provider (default: ollama)")
+    benchmark.add_argument("--vision-model", help=(
+        "Model name; defaults to OLLAMA_VISION_MODEL for Ollama or "
+        "OPENAI_VISION_MODEL/gpt-4o-mini for OpenAI"
+    ))
     benchmark.add_argument("--limit", type=int, default=0,
                            help="Evaluate only the first N examples")
+    benchmark.add_argument("--rag-top-k", type=int, default=3,
+                           help="Retrieved evidence passages per question; 0 disables QA RAG")
     benchmark.add_argument("--output", help="Save per-example M3SciQA answers as JSONL")
     benchmark.add_argument("--augmentation-k", type=int, default=2,
                            help="Validation examples per test question; 0 disables augmentation")
@@ -70,6 +85,15 @@ def main() -> None:
     evaluate.add_argument("--split", choices=("validation", "test"), default="validation")
     evaluate.add_argument("--top-k", type=int, default=5)
     evaluate.add_argument("--limit", type=int, default=0)
+    evaluate.add_argument(
+        "--agent-provider", choices=("ollama", "openai"),
+        default=os.environ.get("AGENT_PROVIDER", "ollama"),
+        help="LLM provider for agent tool selection (default: ollama)",
+    )
+    evaluate.add_argument(
+        "--agent-model",
+        help="Model name; defaults to OLLAMA_AGENT_MODEL/qwen2.5:3b or config/gpt.json for OpenAI",
+    )
     evaluate.add_argument("--output", help="Optional path to save metric JSON")
     evaluate.add_argument("--samples-output",
                           help="Optional JSON path for each sample's inputs and system outputs")
@@ -81,7 +105,9 @@ def main() -> None:
         print(f"Saved {len(papers)} papers to {args.output}")
     elif args.command == "ask":
         assistant = ResearchAssistant(
-            _papers_for(args.corpus), vision_model=args.vision_model
+            _papers_for(args.corpus), vision_model=args.vision_model,
+            agent_model=args.agent_model,
+            agent_provider=args.agent_provider,
         )
         result = assistant.run(args.question)
         print(result["answer"])
@@ -106,6 +132,8 @@ def main() -> None:
             top_k=args.top_k,
             limit=args.limit,
             samples_output_path=args.samples_output or "",
+            model=args.agent_model,
+            provider=args.agent_provider,
         )
         rendered = json.dumps(metrics, indent=2)
         if args.output:
@@ -114,9 +142,11 @@ def main() -> None:
             output_path.write_text(rendered + "\n", encoding="utf-8")
         print(rendered)
     elif args.command == "benchmark":
-        if not args.vision_model:
+        if args.vision_provider == "ollama" and not (
+            args.vision_model or os.environ.get("OLLAMA_VISION_MODEL")
+        ):
             parser.error(
-                "M3SciQA evaluation needs --vision-model or OLLAMA_VISION_MODEL"
+                "Ollama evaluation needs --vision-model or OLLAMA_VISION_MODEL"
             )
         data_dir = Path(args.data_dir or "data/m3sciqa")
         if args.download and not (data_dir / f"{args.split}.jsonl").exists():
@@ -128,6 +158,8 @@ def main() -> None:
             limit=args.limit,
             output_path=args.output,
             augmentation_k=args.augmentation_k,
+            vision_provider=args.vision_provider,
+            rag_top_k=args.rag_top_k,
         )
         print(json.dumps(metrics, indent=2))
     else:

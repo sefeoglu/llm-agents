@@ -3,7 +3,20 @@ import json
 import pymupdf
 
 from llm_agents.papers import ingest_pdf, load_papers, save_papers
+from llm_agents.llm import LLM
 from llm_agents.research import ResearchAssistant
+
+
+class ScriptedLLM(LLM):
+    def __init__(self, answer):
+        self.answer = answer
+        self.calls = 0
+
+    def decide(self, question, observations, tools=None):
+        self.calls += 1
+        if not observations:
+            return {"tool": "inspect_figures", "arguments": {"query": question}}
+        return {"answer": self.answer}
 
 
 def test_pdf_ingestion_extracts_text_and_visual_assets(tmp_path):
@@ -58,7 +71,8 @@ def test_agent_routes_visual_question_to_figure_inspection(tmp_path):
         return "The plotted treatment group is higher than control."
 
     assistant = ResearchAssistant(
-        [paper], vision_model="test-vision", vision_analyzer=fake_vision
+        [paper], vision_model="test-vision", vision_analyzer=fake_vision,
+        llm=ScriptedLLM("The plotted treatment group is higher than control."),
     )
     result = assistant.run("What does Figure 1 show?")
 
@@ -68,7 +82,9 @@ def test_agent_routes_visual_question_to_figure_inspection(tmp_path):
 
 
 def test_figure_inspection_has_clear_no_assets_fallback():
-    assistant = ResearchAssistant([])
+    assistant = ResearchAssistant(
+        [], llm=ScriptedLLM("No indexed PDF figures or page images were found.")
+    )
     result = assistant.run("What does the chart show?")
     assert result["trace"][0]["tool"] == "inspect_figures"
     assert result["answer"] == "No indexed PDF figures or page images were found."

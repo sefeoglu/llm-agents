@@ -1,0 +1,20 @@
+{
+  "dataset": "M3SciQA",
+  "split": "validation",
+  "tool_selection_provider": "openai",
+  "tool_selection_model": "gpt-4.1-mini",
+  "examples_considered": 452,
+  "retrieval_examples": 450,
+  "retrieval_k": 5,
+  "recall_at_k": 0.8533,
+  "mrr_at_k": 0.7855,
+  "citation_correctness": 0.74,
+  "citations_evaluated": 450,
+  "tool_selection_examples": 452,
+  "tool_selection_errors": 0,
+  "tool_selection_accuracy": 0.0996,
+  "citation_metric_note": "Correctness is a paper-ID match against reference_arxiv_id; it does not establish semantic entailment.",
+  "tool_selection_note": "Expected tool is inspect_figures for every row whose M3SciQA modality is figure or table; accuracy measures the configured LLM's first tool decision.",
+  "retrieval_corpus_note": "Candidate text uses only public evidence_reference annotations grouped by reference_arxiv_id; answer/reference explanations are not indexed.",
+  "samples_output_file": "/Users/sefika/projects/llm-agents/results/tool-calling/validation/agentic-run-2026-10-31/samples.json"
+}
