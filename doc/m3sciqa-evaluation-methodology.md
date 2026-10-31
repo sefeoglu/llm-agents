@@ -2,22 +2,24 @@
 
 ## Purpose
 
-This evaluation measures four parts of the research assistant using the labeled validation split of Yale NLP's M3SciQA dataset: evidence retrieval, rank quality, citation-ID correctness, and first-tool selection. The dataset contains question text, an image (figure or table), `reference_arxiv_id`, `evidence_reference`, and modality labels. The test split has hidden answers and is not used for scored evaluation.
+This evaluation measures evidence retrieval, rank quality, citation-ID correctness, and first-tool selection on Yale NLP's M3SciQA validation and test splits. Both splits expose question text, an image (figure or table), `reference_arxiv_id`, `evidence_reference`, and modality labels. Test answers are hidden, but these annotation fields are available and are sufficient for the four metrics in this harness. No answer-quality metric (EM/F1) is computed for test.
 
 ## Data and Scope
 
 - Source: [Yale NLP M3SciQA](https://huggingface.co/datasets/yale-nlp/M3SciQA), CC-BY-4.0.
-- Local input: `data/m3sciqa/validation.jsonl`.
+- Local inputs: `data/m3sciqa/validation.jsonl` and `data/m3sciqa/test.jsonl`.
 - Validation examples considered: 452.
-- Retrieval/citation examples: 450, those with a `reference_arxiv_id` and non-empty `evidence_reference`.
-- Tool-routing examples: 452 with `modal` equal to `figure` or `table`.
-- Test labels are hidden; test runs produce predictions only and have no EM/F1 or retrieval gold score in this harness.
+- Test examples considered: 1,000.
+- Validation retrieval/citation examples: 450 with a `reference_arxiv_id` and non-empty `evidence_reference`.
+- Test retrieval/citation examples: 997 with a `reference_arxiv_id` and non-empty `evidence_reference`.
+- Tool-routing examples: all 452 validation and 1,000 test rows with `modal` equal to `figure` or `table`.
+- Test answer labels are hidden, so test EM/F1 is not computed. Retrieval, paper-ID match, and tool-choice metrics use the released evidence/reference-ID/modality annotations only.
 
 The evaluator reads the existing dataset but does not edit it. It does not use `answer`, `answer_anchor`, or `explanation_reference` to build retrieval documents.
 
 ## Retrieval Corpus
 
-For each validation row with a reference ID and evidence text, `evidence_reference` is grouped under its `reference_arxiv_id`. Repeated evidence snippets for the same paper are deduplicated and joined. Each resulting paper entry has the form:
+For each row in the selected split with a reference ID and evidence text, `evidence_reference` is grouped under its `reference_arxiv_id`. Repeated evidence snippets for the same paper are deduplicated and joined. Each resulting paper entry has the form:
 
 ```text
 [arXiv:<reference_arxiv_id>] <deduplicated evidence_reference passages>
@@ -37,13 +39,16 @@ The row's `question` is the retrieval query. The existing BM25 `Reranker` scores
 
 ## Reproduction
 
-From the repository root, with the local M3SciQA validation files present:
+From the repository root, with the local M3SciQA files present:
 
 ```bash
-python main.py evaluate-agent --data-dir data/m3sciqa --split validation --top-k 5 --output results/m3sciqa-agent-metrics.json
+python main.py evaluate-agent --data-dir data/m3sciqa --split validation --top-k 5 --output results/m3sciqa-agent-metrics-validation.json
+python main.py evaluate-agent --data-dir data/m3sciqa --split test --top-k 5 --output results/m3sciqa-agent-metrics-test.json
+python main.py evaluate-agent --data-dir data/m3sciqa --split validation --top-k 5 --samples-output results/m3sciqa-agent-samples-validation.json
+python main.py evaluate-agent --data-dir data/m3sciqa --split test --top-k 5 --samples-output results/m3sciqa-agent-samples-test.json
 ```
 
-The command writes JSON metrics. It does not make model calls or modify dataset files. Tests use synthetic temporary fixtures for deterministic expected values:
+The command writes JSON metrics; `--samples-output` additionally writes one input/output record per sample. Inputs include question, modality, local image path, reference paper ID, and evidence annotation. Outputs include ranked paper IDs and BM25 scores, gold rank, Recall@k hit, reciprocal rank, top-citation ID match, and selected/expected tool. Hidden answer text is not copied into either split's trace. The evaluator makes no model calls and does not modify dataset files. Tests use synthetic temporary fixtures for deterministic expected values:
 
 ```bash
 python -m pytest -q tests/test_research.py -k m3sciqa_agent
@@ -51,13 +56,11 @@ python -m pytest -q tests/test_research.py -k m3sciqa_agent
 
 ## Recorded Results
 
-Measured on the full labeled validation split:
+Measured on both complete splits:
 
-| Metric | Value | Denominator |
-| --- | ---: | ---: |
-| Recall@5 | 0.8533 | 450 retrieval-eligible rows |
-| MRR@5 | 0.7855 | 450 retrieval-eligible rows |
-| Citation correctness (top-1 ID match) | 0.7400 | 450 emitted top-1 citations |
-| Tool-selection accuracy | 0.3407 | 452 figure/table rows |
+| Split | Recall@5 | MRR@5 | Citation correctness | Tool-selection accuracy |
+| --- | ---: | ---: | ---: | ---: |
+| Validation | 0.8533 (450 rows) | 0.7855 (450 rows) | 0.7400 (450 citations) | 0.3407 (452 rows) |
+| Test | 0.8837 (997 rows) | 0.8130 (997 rows) | 0.7673 (997 citations) | 0.3560 (1,000 rows) |
 
-The low tool-selection accuracy indicates the lexical router frequently fails to infer visual intent when the question does not explicitly mention a figure/table. Citation correctness is not semantic support accuracy. The machine-readable output is [results/m3sciqa-agent-metrics.json](../results/m3sciqa-agent-metrics.json).
+The test metrics use public evidence passages and paper IDs; they do not use hidden answers, and no answer correctness is implied. Tool-selection accuracy is low because the lexical router often misses visual intent when a question does not explicitly mention a figure/table. Citation correctness is not semantic support accuracy. Aggregate results are saved in [validation metrics](../results/m3sciqa-agent-metrics-validation.json) and [test metrics](../results/m3sciqa-agent-metrics-test.json); per-sample I/O is in [validation samples](../results/m3sciqa-agent-samples-validation.json) and [test samples](../results/m3sciqa-agent-samples-test.json).

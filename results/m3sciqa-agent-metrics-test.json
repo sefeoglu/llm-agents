@@ -1,0 +1,17 @@
+{
+  "dataset": "M3SciQA",
+  "split": "test",
+  "examples_considered": 1000,
+  "retrieval_examples": 997,
+  "retrieval_k": 5,
+  "recall_at_k": 0.8837,
+  "mrr_at_k": 0.813,
+  "citation_correctness": 0.7673,
+  "citations_evaluated": 997,
+  "tool_selection_examples": 1000,
+  "tool_selection_accuracy": 0.356,
+  "citation_metric_note": "The baseline cites its top-ranked passage. Correctness is a paper-ID match against reference_arxiv_id; it does not establish semantic entailment.",
+  "tool_selection_note": "Expected tool is inspect_figures for every row whose M3SciQA modality is figure or table; accuracy measures the router's first tool decision.",
+  "retrieval_corpus_note": "Candidate text uses only public evidence_reference annotations grouped by reference_arxiv_id; answer/reference explanations are not indexed.",
+  "samples_output_file": "/Users/sefika/projects/llm-agents/results/m3sciqa-agent-samples-test.json"
+}
