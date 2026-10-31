@@ -1,6 +1,13 @@
 # Scientific Literature Research Agent
 
-**Note** This is a basic prototype rather than a full agentic work and is evaluated on a small dataset. 
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![Agent](https://img.shields.io/badge/Agent-Rule--based%20prototype-6A5ACD)
+![Retrieval](https://img.shields.io/badge/Retrieval-BM25-00897B)
+![Multimodal](https://img.shields.io/badge/Benchmark-M3SciQA-EA6A47)
+![Tests](https://img.shields.io/badge/Tests-17%20passing-2E8B57)
+![License](https://img.shields.io/badge/License-MIT-555555)
+
+> **Note:** This is a basic prototype, not a fully agentic system, and has been evaluated on a small dataset. Its orchestration design was inspired by [Chen et al. (2026)](#orchestration-reference).
 
 **Scientific Literature Research Agent** is a small CLI prototype for scientific literature research. Its **orchestration layer** runs a bounded agent loop: a rule-based router selects tools dynamically, `ToolRegistry` dispatches calls, and every call is recorded in an inspectable trace. Available tools cover arXiv literature search, **BM25** paper retrieval, safe arithmetic, publication-trend analysis, and PDF figure/table inspection with optional local **Ollama** vision. Separate evaluation commands measure **M3SciQA** retrieval, **citation-ID** matching, **tool selection**, and **multimodal answers** where labels are available.
 
@@ -46,6 +53,28 @@ The arXiv API call requires network access. The collector stores titles, authors
 - `main.py` provides collection, PDF ingestion, question-answering, and benchmark commands.
 
 The interactive agent is a deterministic routing baseline, not a generative answer model. The optional Ollama model is currently used for image descriptions and M3SciQA inference. A battery-focused regression experiment and synthesized, evidence-grounded battery answers are not implemented yet.
+
+### Orchestration Reference
+
+The agent orchestration and tool-calling design is informed by the constraint-aware agent approach described in:
+
+Chen, B., Bök, T.E., Rasti, B., Markl, V., & Demir, B. (2026). “Foundation Model Selection for Remote Sensing via a Constraint-Aware Agent.” In P. Favaro, Z. Kukelova, A. Maki, A. Rohrbach, K. Schindler, & F. Tombari (Eds.), *Computer Vision – ECCV 2026*, Lecture Notes in Computer Science, vol. 17064. Springer, Cham. [https://doi.org/10.1007/978-3-032-37196-6_34](https://doi.org/10.1007/978-3-032-37196-6_34)
+
+```bibtex
+@inproceedings{chen2026constraintAwareAgent,
+	author    = {Chen, B. and B{\"o}k, T. E. and Rasti, B. and Markl, V. and Demir, B.},
+	title     = {Foundation Model Selection for Remote Sensing via a Constraint-Aware Agent},
+	booktitle = {Computer Vision -- ECCV 2026},
+	series    = {Lecture Notes in Computer Science},
+	volume    = {17064},
+	publisher = {Springer},
+	address   = {Cham},
+	year      = {2026},
+	doi       = {10.1007/978-3-032-37196-6_34}
+}
+```
+
+This is an architecture reference for orchestration and tool calling, not a source for battery-science claims. This project uses its own deterministic rule-based router and bounded tool loop.
 
 ## Example
 
